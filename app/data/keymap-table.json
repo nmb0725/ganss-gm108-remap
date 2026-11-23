@@ -419,8 +419,8 @@
       "status": "verified"
     },
     "103": {
-      "name": "Pause",
-      "status": "verified"
+      "name": "Backspace",
+      "status": "inferred"
     },
     "104": {
       "name": "Num0",
@@ -455,7 +455,7 @@
       "status": "unknown"
     },
     "115": {
-      "name": "Backspace",
+      "name": "Pause",
       "status": "verified"
     },
     "116": {

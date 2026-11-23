@@ -16,7 +16,7 @@ window.KEYBOARD = [
   ...[10, 11, 12, 13].map((c, i) => ({ l: 'F' + (i + 9), cell: c, conf: 'v', hid: 66 + i, x: 11 + i, y: 0 })),
   { l: 'PrtSc', cell: 112, conf: 'v', hid: 70, x: 16, y: 0, tip: 'PrtSc (老软件核对证实, 格号112)' },
   { l: 'ScrLk', cell: 113, conf: 'v', hid: 71, x: 17, y: 0, tip: 'ScrLk (老软件核对证实, 格号113)' },
-  { l: 'Pause', cell: 103, conf: 'v', hid: 72, x: 18, y: 0 },
+  { l: 'Pause', cell: 115, conf: 'v', hid: 72, x: 18, y: 0 },
   // 小键盘上方 4 键 (GM108 无旋钮, 此处为媒体/自定义键)
   { l: 'V+', cell: 14, conf: 'v', x: 20, y: 0, tip: '音量增加 (老软件核对证实, 格号14)' },
   { l: 'V-', cell: 15, conf: 'v', x: 21, y: 0, tip: '音量减小 (老软件核对证实, 格号15)' },
@@ -27,7 +27,7 @@ window.KEYBOARD = [
   ...[20, 21, 22, 23, 24, 25, 26, 27, 28, 29].map((c, i) => ({ l: String((i + 1) % 10), cell: c, conf: 'v', hid: HK(String((i + 1) % 10)), x: 1 + i, y: 1 })),
   { l: '-', cell: 30, conf: 'v', hid: HK('-'), x: 11, y: 1 },
   { l: '=', cell: 31, conf: 'v', hid: HK('='), x: 12, y: 1 },
-  { l: '⌫', cell: 115, conf: 'v', hid: 42, x: 13, y: 1, w: 2, tip: 'Backspace' },
+  { l: '⌫', cell: 103, conf: 'i', hid: 42, x: 13, y: 1, w: 2, tip: 'Backspace' },
   { l: 'Ins', cell: 116, conf: 'v', hid: 73, x: 16, y: 1 },
   { l: 'Home', cell: 117, conf: 'v', hid: 74, x: 17, y: 1 },
   { l: 'PgUp', cell: 118, conf: 'v', hid: 75, x: 18, y: 1 },

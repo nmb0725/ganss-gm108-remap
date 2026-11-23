@@ -35,9 +35,34 @@ function install(){
         if(/mi_03/i.test(p))
           send({info: 'OPEN handle=' + ret + ' acc=0x' + this.acc + ' share=0x' + this.share +
                       ' disp=0x' + this.disp + ' flags=0x' + this.flags + ' ' + p});
+        if(/hid#/i.test(p)) (globalThis.__hidHandles = globalThis.__hidHandles || {})[String(ret)] = true;
       }
     });
     send({info: 'HOOKED CreateFileW@' + modName});
+  }
+
+  // hook WriteFile: 抓 HID 句柄上的输出报告(宏内容疑似走这条路, Feature 报告中从未出现)
+  for(const modName of ['kernel32.dll', 'kernelbase.dll']){
+    const key = 'WriteFile@' + modName;
+    if(H[key]) continue;
+    const m = getMod(modName);
+    const a = m && m.findExportByName('WriteFile');
+    if(!a) continue;
+    H[key] = true;
+    Interceptor.attach(a, {
+      onEnter(args){ this.h = args[0]; this.buf = args[1]; this.len = args[2].toUInt32(); },
+      onLeave(ret){
+        const HH = globalThis.__hidHandles || {};
+        if(!HH[String(this.h)]) return;
+        let hex = '<err>';
+        try {
+          const b = this.buf.readByteArray(this.len);
+          hex = b ? Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join(' ') : '<null>';
+        } catch(e){ hex = '<err>'; }
+        send({api:'WriteFile', tag:'WR', len:this.len, ret:ret.toInt32(), handle:String(this.h), hex});
+      }
+    });
+    send({info:'HOOKED WriteFile@' + modName});
   }
 
   const targets = [

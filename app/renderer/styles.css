@@ -77,17 +77,51 @@ button:disabled { background: #333a4a; color: #6b7280; cursor: not-allowed; }
 .knob text { fill: var(--dim); font-size: 12px; text-anchor: middle; }
 .conf-v { color: var(--ok); } .conf-i { color: var(--text); } .conf-q { color: var(--warn); }
 
+#fn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.fn-card { padding: 10px 2px; font-size: 13px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--line); cursor: pointer; }
+.fn-card:hover { border-color: var(--accent); }
+.fn-card.active { border-color: var(--accent); background: #273452; color: #fff; }
+.fn-card.off { opacity: .38; cursor: not-allowed; }
+.fn-card.off:hover { border-color: var(--line); }
 #insp-title { font-size: 16px; font-weight: 600; }
 #remap-capture {
-  width: 100%; margin-top: 12px; padding: 7px 8px; border-radius: 6px; outline: none; cursor: pointer;
-  border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 14px; text-align: center;
+  width: 100%; margin-top: 0; padding: 8px; border-radius: 8px; outline: none; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 14px; text-align: center;
 }
 #remap-capture:not(:placeholder-shown) { color: var(--remap); border-color: var(--remap); }
 #remap-capture.capturing { border-color: var(--accent); color: var(--accent); }
-#remap-special {
-  width: 100%; margin-top: 8px; padding: 5px 6px; border-radius: 6px;
-  border: 1px solid var(--line); background: var(--bg); color: var(--dim); font-size: 12px; outline: none;
+#mod-chips { display: flex; gap: 6px; margin-bottom: 8px; }
+.chip {
+  flex: 1; text-align: center; padding: 5px 0; border-radius: 6px; font-size: 13px;
+  border: 1px solid var(--line); background: var(--panel2); color: var(--dim);
 }
+.chip.on { color: var(--accent); border-color: var(--accent); }
+#fn-remap { margin-top: 12px; }
+#fn-editor {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 12px 10px 10px;
+}
+#fn-editor #remap-capture { margin-top: 0; }
+/* 全局下拉框: 自绘箭头、大字号、深色统一 */
+select {
+  appearance: none; -webkit-appearance: none;
+  width: 100%; margin-top: 8px; padding: 9px 32px 9px 12px; border-radius: 8px;
+  border: 1px solid var(--line); background-color: var(--panel2); color: var(--text);
+  font-size: 14px; font-family: inherit; outline: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2214%22%20height%3D%2210%22%3E%3Cpath%20d%3D%22M2%202l5%205%205-5%22%20stroke%3D%22%238ab4ff%22%20stroke-width%3D%222.5%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+select:hover, select:focus { border-color: var(--accent); }
+option { background: var(--panel); color: var(--text); }
+/* 连击键: 三段小格 + 隐藏捕捉焦点代理 */
+#combo-slots { display: flex; gap: 8px; }
+.combo-slot {
+  flex: 1; min-width: 0; height: 38px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel2); color: var(--dim);
+  font-size: 14px; font-family: inherit;
+}
+.combo-slot.filled { color: var(--remap); border-color: var(--remap); }
+.combo-slot.active { border-color: var(--accent); color: var(--accent); }
+#combo-capture { position: absolute; width: 1px; height: 1px; opacity: 0; border: 0; outline: none; }
 .opt { display: block; margin-top: 12px; cursor: pointer; }
 .opt.disabled { opacity: .5; cursor: not-allowed; }
 
@@ -99,7 +133,7 @@ button:disabled { background: #333a4a; color: #6b7280; cursor: not-allowed; }
 #status-text.err { color: var(--err); }
 #status-text.ok { color: var(--ok); }
 #diff-summary { flex: 1; color: var(--warn); }
-#btn-factory { border: 1px solid var(--warn); background: transparent; color: var(--warn); }
+#btn-factory { padding: 3px 12px; border-radius: 12px; font-size: 13px; background: transparent; border: 1px solid var(--warn); color: var(--warn); }
 #btn-factory:hover { background: rgba(241,196,15,.12); }
 #btn-factory:disabled { border-color: #333a4a; background: transparent; color: #6b7280; }
 #apply-btn { padding: 6px 22px; background: var(--accent); color: #fff; font-size: 14px; }

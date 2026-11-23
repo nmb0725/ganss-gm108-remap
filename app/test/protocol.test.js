@@ -81,6 +81,31 @@ test('改键: 目标缺失/越界拒绝下发', () => {
   assert.throws(() => P.buildKeymap({ overrides: [{ cell: 56, action: 'remap', mod: 256 }] }), /修饰位无效/);
 });
 
+test('鼠标/多媒体/连击: 实测锚 (cap_features.log 2026-11-23)', () => {
+  const cases = [
+    [{ cell: 113, action: 'mouse', button: 'left' }, '01010100'],        // ScrLk=鼠标左
+    [{ cell: 97, action: 'mouse', button: 'right' }, '01010200'],        // 鼠标右
+    [{ cell: 97, action: 'mouse', button: 'middle' }, '01010400'],       // 鼠标中
+    [{ cell: 116, action: 'mouse', button: 'back' }, '01010800'],        // 后退
+    [{ cell: 119, action: 'mouse', button: 'forward' }, '01011000'],     // 前进
+    [{ cell: 95, action: 'mouse', button: 'wheel-up' }, '01030100'],     // 滚轮上
+    [{ cell: 98, action: 'mouse', button: 'wheel-down' }, '0103ff00'],   // 滚轮下
+    [{ cell: 112, action: 'media', usage: 0xea }, '03ea0000'],           // 音量-
+    [{ cell: 15, action: 'combo', keys: [4, 5, 6] }, '07040506']         // 连击 A B C
+  ];
+  for (const [o, want] of cases) {
+    const seg = P.buildKeymap({ overrides: [o] });
+    assert.strictEqual(seg.subarray(o.cell * 4, o.cell * 4 + 4).toString('hex'), want, JSON.stringify(o));
+  }
+});
+
+test('鼠标/多媒体/连击: 非法参数拒绝下发', () => {
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 90, action: 'mouse', button: 'nope' }] }), /鼠标功能无效/);
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 90, action: 'media', usage: 0 }] }), /usage 无效/);
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 90, action: 'combo', keys: [] }] }), /1\.\.3/);
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 90, action: 'combo', keys: [4, 5, 6, 7] }] }), /1\.\.3/);
+});
+
 test('格号越界拒绝', () => {
   for (const c of [0, 144, 159]) assert.throws(() => P.buildKeymap({ overrides: [{ cell: c, action: 'disable' }] }), /越界/);
 });

@@ -52,6 +52,29 @@ function buildKeymap(config) {
       if (!mod && !usage) throw new ProtocolAbort('build', '改键目标为空 (需 mod 或 hid)');
       buf[at] = 0x02; buf[at + 1] = mod; buf[at + 2] = usage;
     }
+    // 鼠标功能(cap_features.log 实测锚): 按键=01 01 <位> 00, 滚轮=01 03 <delta> 00
+    else if (o.action === 'mouse') {
+      const BTN = { left: 0x01, right: 0x02, middle: 0x04, back: 0x08, forward: 0x10 };
+      if (BTN[o.button]) { buf[at] = 0x01; buf[at + 1] = 0x01; buf[at + 2] = BTN[o.button]; }
+      else if (o.button === 'wheel-up') { buf[at] = 0x01; buf[at + 1] = 0x03; buf[at + 2] = 0x01; }
+      else if (o.button === 'wheel-down') { buf[at] = 0x01; buf[at + 1] = 0x03; buf[at + 2] = 0xff; }
+      else throw new ProtocolAbort('build', `鼠标功能无效: ${o.button}`);
+    }
+    // 多媒体键(实测锚 PrtSc=03 ea 00 00 = 音量-): 03 <usage低> <usage高> 00 (HID Consumer 页)
+    else if (o.action === 'media') {
+      if (!Number.isInteger(o.usage) || o.usage < 1 || o.usage > 0xffff) throw new ProtocolAbort('build', `多媒体 usage 无效: ${o.usage}`);
+      buf[at] = 0x03; buf[at + 1] = o.usage & 0xff; buf[at + 2] = (o.usage >> 8) & 0xff;
+    }
+    // 连击键/组合序列(实测锚 V-=07 04 05 06 = A B C): 07 <键1> <键2> <键3>, 1..3 个 HID usage (修饰键 E0..E7 可作单格)
+    else if (o.action === 'combo') {
+      const keys = Array.isArray(o.keys) ? o.keys : [];
+      if (keys.length < 1 || keys.length > 3) throw new ProtocolAbort('build', `连击键需 1..3 个键: ${JSON.stringify(o.keys)}`);
+      buf[at] = 0x07;
+      keys.forEach((k, i) => {
+        if (!Number.isInteger(k) || k < 1 || (k > 0xdf && (k < 0xe0 || k > 0xe7))) throw new ProtocolAbort('build', `连击键无效: ${k}`);
+        buf[at + 1 + i] = k;
+      });
+    }
     else throw new ProtocolAbort('build', `未知动作: ${o.action}`);
   }
   buf[638] = 0xaa; buf[639] = 0x55;

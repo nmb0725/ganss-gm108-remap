@@ -63,13 +63,13 @@ function refreshKeyFace(k) {
   const act = ov ? ov.action : 'default';
   const g = k._g;
   g.classList.toggle('dis', act === 'disable');
-  g.classList.toggle('remap', act === 'remap');
+  g.classList.toggle('remap', act !== 'default' && act !== 'disable');
   const main = g.querySelector('text.main');
   const sub = g.querySelector('text.sub');
   const cy = k.y * U + 4 + ((k.h || 1) * U - 4) / 2;
   let subStr = '';
   if (act === 'disable') main.textContent = '✕';
-  else if (act === 'remap') { main.textContent = k.l; subStr = ov.target || ''; }
+  else if (act !== 'default') { main.textContent = k.l; subStr = ov.target || ''; }
   else { main.textContent = k.l; if (k.conf === '?') subStr = '?'; }
   sub.textContent = subStr;
   main.setAttribute('y', cy - (subStr ? 6 : 0));
@@ -102,52 +102,145 @@ const CODE_MAP = (() => {
   return m;
 })();
 const MOD_BIT = { ControlLeft: 0x01, ControlRight: 0x10, ShiftLeft: 0x02, ShiftRight: 0x20, AltLeft: 0x04, AltRight: 0x40, MetaLeft: 0x08, MetaRight: 0x80 };
+// 连击键用: 修饰键作为独立格时的 HID usage (E0..E7)
+const MOD_HID = { ControlLeft: [0xe0, 'Ctrl'], ControlRight: [0xe4, '右Ctrl'], ShiftLeft: [0xe1, 'Shift'], ShiftRight: [0xe5, '右Shift'], AltLeft: [0xe2, 'Alt'], AltRight: [0xe6, '右Alt'], MetaLeft: [0xe3, 'Win'], MetaRight: [0xe7, '右Win'] };
 const MOD_LABEL = [[0x01, 'Ctrl'], [0x10, '右Ctrl'], [0x04, 'Alt'], [0x40, '右Alt'], [0x02, 'Shift'], [0x20, '右Shift'], [0x08, 'Win'], [0x80, '右Win']];
 const modsLabel = m => MOD_LABEL.filter(([b]) => m & b).map(([, n]) => n).join(' + ');
 // 旧档兼容: {hid: 224..230} 表示纯修饰键
 function normOv(ov) {
-  if (ov.mod != null || ov.hid == null) return { mod: ov.mod | 0, hid: ov.hid != null && ov.hid < 0xe0 ? ov.hid : null, target: ov.target || '' };
-  if (ov.hid >= 0xe0 && ov.hid <= 0xe7) return { mod: 1 << (ov.hid - 0xe0), hid: null, target: ov.target || '' };
-  return { mod: 0, hid: ov.hid, target: ov.target || '' };
+  let mod = 0, hid = null;
+  if (ov.mod != null) mod = ov.mod | 0;
+  if (ov.hid != null && ov.hid < 0xe0) hid = ov.hid;
+  else if (ov.hid >= 0xe0 && ov.hid <= 0xe7 && !mod) mod = 1 << (ov.hid - 0xe0);
+  const target = ov.target || '';
+  const modOnly = mod && hid == null; // 纯修饰键目标整体显示在主键槽, 不点亮修饰灯条
+  const parts = target.split(' + ');
+  return { mod, hid, target, mods: modOnly ? 0 : mod, keyLabel: modOnly ? target : parts[parts.length - 1] };
 }
-function syncRemapCapture() {
-  const a = document.querySelector('#insp-body input[name=act]:checked');
-  const show = !!(a && a.value === 'remap');
-  capBox.hidden = !show;
-  $('remap-special').hidden = !show;
+// 修饰键灯条 + 主键槽 的统一渲染
+const CHIP_DEFS = [['Ctrl', 0x01, 0x10], ['Alt', 0x04, 0x40], ['Shift', 0x02, 0x20], ['Win', 0x08, 0x80]];
+function renderRemapSlots() {
+  const mod = capturing ? liveMod : (captured ? (captured.mods || 0) : 0);
+  document.querySelectorAll('#mod-chips .chip').forEach(c => {
+    const [name, l, r] = CHIP_DEFS[Number(c.dataset.i)];
+    const on = mod & (l | r);
+    c.classList.toggle('on', !!on);
+    c.textContent = (on && !(mod & l) && (mod & r)) ? '右' + name : name;
+  });
+  if (capturing) capBox.value = liveMod ? '修饰键已按下, 再按主键…' : '请按下按键…';
+  else capBox.value = captured ? (captured.keyLabel || captured.target || '') : '';
 }
+// 功能卡片网格: default / remap(键盘功能) / disable 可用, 其余为固件不支持的占位
+let fnSel = 'default';
+function renderFnPanel() {
+  document.querySelectorAll('#fn-grid .fn-card').forEach(c => c.classList.toggle('active', c.dataset.fn === fnSel));
+  $('fn-remap').hidden = fnSel !== 'remap';
+  $('fn-mouse').hidden = fnSel !== 'mouse';
+  $('fn-combo').hidden = fnSel !== 'combo';
+  $('fn-media').hidden = fnSel !== 'media';
+}
+// Windows 快捷键预设 = 同一套 02 <修饰位> <usage> 00 线格式, 记录后与键盘功能共用应用逻辑
+$('win-preset').addEventListener('change', e => {
+  const v = e.target.value;
+  if (!v) return;
+  const [mod, hid, target] = v.split('|');
+  captured = { mod: Number(mod), hid: Number(hid), target, mods: Number(mod), keyLabel: target.split(' + ').pop() };
+  renderRemapSlots();
+  setStatus('已选 Windows 快捷键: ' + target + ' — 点"应用"加入草稿', 'ok');
+});
+document.querySelectorAll('#fn-grid .fn-card').forEach(c => c.addEventListener('click', () => {
+  if (c.classList.contains('off')) { setStatus(`「${c.textContent.trim()}」: ${c.title || 'GM108 固件不支持此功能'}`, 'err'); return; }
+  fnSel = c.dataset.fn;
+  renderFnPanel();
+}));
 // PrtSc 等 Chromium 捕捉不到的键: 从兜底下拉直选
 $('remap-special').addEventListener('change', e => {
   const v = e.target.value;
   e.target.selectedIndex = 0;
   if (!v) return;
   const [mod, hid, target] = v.split('|');
-  captured = { mod: Number(mod), hid: Number(hid), target };
-  capBox.value = target;
+  captured = { mod: Number(mod), hid: Number(hid), target, mods: Number(mod), keyLabel: target.split(' + ').pop() };
+  renderRemapSlots();
 });
-document.querySelectorAll('#insp-body input[name=act]').forEach(r => r.addEventListener('change', syncRemapCapture));
+// 鼠标功能 / 多媒体键: 下拉直选 (编码协议见 main/protocol.js)
+const MOUSE_LABEL = { left: '鼠标左键', right: '鼠标右键', middle: '鼠标中键', back: '鼠标后退', forward: '鼠标前进', 'wheel-up': '滚轮上滚', 'wheel-down': '滚轮下滚' };
+let mousePick = null, mediaPick = null, comboCap = null;
+$('mouse-pick').addEventListener('change', e => {
+  const v = e.target.value;
+  mousePick = v ? { button: v, target: MOUSE_LABEL[v] } : null;
+  if (mousePick) setStatus('已选鼠标功能: ' + mousePick.target + ' — 点"应用"加入草稿', 'ok');
+});
+$('media-pick').addEventListener('change', e => {
+  const v = e.target.value;
+  mediaPick = v ? { usage: Number(v), target: e.target.selectedOptions[0].textContent.trim() } : null;
+  if (mediaPick) setStatus('已选多媒体键: ' + mediaPick.target + ' — 点"应用"加入草稿', 'ok');
+});
+// 连击键: 三段小格, 隐藏的 #combo-capture 只做捕捉焦点代理
+const comboBox = $('combo-capture');
+let comboCapturing = false;
+function renderComboSlots() {
+  document.querySelectorAll('.combo-slot').forEach((s, i) => {
+    const label = comboCap && comboCap.labels[i];
+    s.textContent = label || ('键' + (i + 1));
+    s.classList.toggle('filled', !!label);
+    s.classList.toggle('active', comboCapturing && i === (comboCap ? comboCap.keys.length : 0));
+  });
+}
+comboBox.addEventListener('focus', () => {
+  comboCapturing = true;
+  if (!comboCap || comboCap.keys.length >= 3) comboCap = { keys: [], labels: [], target: '' };
+  renderComboSlots();
+});
+comboBox.addEventListener('blur', () => {
+  comboCapturing = false;
+  if (comboCap && !comboCap.keys.length) comboCap = null;
+  renderComboSlots();
+});
+document.querySelectorAll('.combo-slot').forEach(s => s.addEventListener('click', () => {
+  const i = Number(s.dataset.i);
+  if (comboCap && i < comboCap.keys.length) { // 点已录格 = 从该格起清除重录
+    comboCap.keys = comboCap.keys.slice(0, i);
+    comboCap.labels = comboCap.labels.slice(0, i);
+    comboCap.target = comboCap.labels.join(' + ');
+  }
+  comboBox.focus();
+}));
+capBox.hidden = false;
 capBox.addEventListener('focus', () => {
   capturing = true; liveMod = 0; pressedMod = 0;
   capBox.classList.add('capturing');
-  capBox.value = captured ? '按下新键以替换…' : '请按下按键…';
+  renderRemapSlots();
 });
 capBox.addEventListener('blur', () => {
   capturing = false;
   capBox.classList.remove('capturing');
-  capBox.value = captured ? captured.target : '';
+  renderRemapSlots();
 });
 document.addEventListener('keydown', e => {
+  if (comboCapturing) {
+    e.preventDefault(); e.stopPropagation();
+    if (e.repeat) return;
+    // 修饰键可作为单独一格录入 (usage E0..E7), 但不参与组合
+    const mh = MOD_HID[e.code];
+    const t = mh ? { hid: mh[0], label: mh[1] } : CODE_MAP[e.code];
+    if (!t || comboCap.keys.length >= 3) return;
+    comboCap.keys.push(t.hid); comboCap.labels.push(t.label);
+    comboCap.target = comboCap.labels.join(' + ');
+    renderComboSlots();
+    if (comboCap.keys.length >= 3) comboBox.blur();
+    return;
+  }
   if (!capturing) return;
   e.preventDefault(); e.stopPropagation();
   if (e.repeat) return;
   if (MOD_BIT[e.code]) {
     liveMod |= MOD_BIT[e.code]; pressedMod |= MOD_BIT[e.code];
-    capBox.value = modsLabel(liveMod) + ' + …';
+    renderRemapSlots();
     return;
   }
   const t = CODE_MAP[e.code];
   if (!t) { capBox.value = '未识别的键: ' + e.code; return; }
-  captured = { mod: liveMod, hid: t.hid, target: (liveMod ? modsLabel(liveMod) + ' + ' : '') + t.label };
+  captured = { mod: liveMod, mods: liveMod, hid: t.hid, keyLabel: t.label, target: (liveMod ? modsLabel(liveMod) + ' + ' : '') + t.label };
   capBox.blur(); // 结束捕捉并回填
 }, true);
 // 修饰键全部抬手: 若期间没按过主键, 目标就是这组修饰键本身 (如 Caps→右Ctrl)
@@ -156,7 +249,10 @@ document.addEventListener('keyup', e => {
   e.preventDefault(); e.stopPropagation();
   liveMod &= ~MOD_BIT[e.code];
   if (liveMod || captured) return;
-  if (pressedMod) { captured = { mod: pressedMod, hid: null, target: modsLabel(pressedMod) }; capBox.blur(); }
+  if (pressedMod) {
+    captured = { mod: pressedMod, mods: 0, hid: null, keyLabel: modsLabel(pressedMod), target: modsLabel(pressedMod) };
+    capBox.blur();
+  }
 }, true);
 
 function selectKey(k, g) {
@@ -171,23 +267,38 @@ function selectKey(k, g) {
     ? `格号(KeyIndex): <b>${k.cell}</b>`
     : '<span class="conf-q">格号未定, 本期不可编辑 (校准后开放)</span>';
   const act = editable ? actionOf(k.cell) : 'default';
-  document.querySelectorAll('#insp-body input[name=act]').forEach(r => { r.checked = r.value === act; });
+  fnSel = ['default', 'remap', 'mouse', 'combo', 'media', 'disable'].includes(act) ? act : 'default';
   const ov = (config.overrides || []).find(o => o.cell === k.cell);
   captured = act === 'remap' && ov ? normOv(ov) : null;
-  capBox.value = captured ? captured.target : '';
-  syncRemapCapture();
+  renderRemapSlots();
+  mousePick = act === 'mouse' && ov ? { button: ov.button, target: ov.target } : null;
+  $('mouse-pick').value = mousePick ? mousePick.button : '';
+  mediaPick = act === 'media' && ov ? { usage: ov.usage, target: ov.target } : null;
+  $('media-pick').value = mediaPick ? String(mediaPick.usage) : '';
+  comboCap = act === 'combo' && ov ? { keys: ov.keys.slice(), labels: ov.target.split(' + '), target: ov.target } : null;
+  renderComboSlots();
+  renderFnPanel();
   $('btn-apply-key').disabled = !editable;
 }
 
 $('btn-apply-key').addEventListener('click', () => {
   if (!selKey || selKey.cell == null) return;
-  const act = (document.querySelector('#insp-body input[name=act]:checked') || {}).value || 'default';
+  const act = fnSel;
   const idx = config.overrides.findIndex(o => o.cell === selKey.cell);
   let entry = { cell: selKey.cell, action: act };
   if (act === 'remap') {
-    if (!captured) { setStatus('请先点击"改键为"输入框, 按下目标键/组合键', 'err'); return; }
+    if (!captured) { setStatus('请先按下目标键/组合键, 或从下拉选择', 'err'); return; }
     if (captured.mod === 0 && captured.hid === (selKey.hid || -1)) { setStatus('目标与自身相同, 请按别的键', 'err'); return; }
     entry = { cell: selKey.cell, action: 'remap', target: captured.target, mod: captured.mod, hid: captured.hid };
+  } else if (act === 'mouse') {
+    if (!mousePick) { setStatus('请先在上方选择鼠标功能', 'err'); return; }
+    entry = { cell: selKey.cell, action: 'mouse', button: mousePick.button, target: mousePick.target };
+  } else if (act === 'media') {
+    if (!mediaPick) { setStatus('请先在上方选择多媒体键', 'err'); return; }
+    entry = { cell: selKey.cell, action: 'media', usage: mediaPick.usage, target: mediaPick.target };
+  } else if (act === 'combo') {
+    if (!comboCap || !comboCap.keys.length) { setStatus('请先在输入框依次按下 1~3 个键', 'err'); return; }
+    entry = { cell: selKey.cell, action: 'combo', keys: comboCap.keys, target: comboCap.target };
   }
   if (act === 'default') { if (idx >= 0) config.overrides.splice(idx, 1); }
   else if (idx >= 0) config.overrides[idx] = entry;
@@ -239,7 +350,7 @@ $('apply-btn').addEventListener('click', async () => {
   const diff = diffList();
   if (!diff.length) return;
   const body = diff.map(o =>
-    `<div class="chg">#${o.cell} ${keyNameByCell.get(o.cell) || '未知键'} → ${o.action === 'disable' ? '禁用' : o.action === 'remap' ? '改键→' + o.target : '恢复默认'}</div>`
+    `<div class="chg">#${o.cell} ${keyNameByCell.get(o.cell) || '未知键'} → ${o.action === 'disable' ? '禁用' : o.action === 'default' ? '恢复默认' : ({ remap: '改键→', mouse: '鼠标→', media: '多媒体→', combo: '连击→' })[o.action] + (o.target || '')}</div>`
   ).join('') + '<p style="margin-top:10px">下发期间请勿拔线或操作键盘。</p>';
   if (!await askDialog({ title: `确认写入键盘 (${diff.length} 处变更)`, bodyHTML: body, okText: '确认写入键盘', danger: true })) return;
   $('apply-btn').disabled = true;
@@ -254,9 +365,9 @@ $('apply-btn').addEventListener('click', async () => {
   markDirty();
 });
 
-// ---- 一键恢复出厂设置 ----
+// ---- 一键还原 (恢复出厂设置) ----
 $('btn-factory').addEventListener('click', async () => {
-  if (!await askDialog({ title: '恢复出厂设置', bodyHTML: '将清除键盘上<b>所有</b>改键与禁用, 恢复出厂默认并立即写入。已保存的配置档不受影响。下发期间请勿拔线或操作键盘。', okText: '确认恢复出厂', danger: true })) return;
+  if (!await askDialog({ title: '一键还原', bodyHTML: '将清除键盘上<b>所有</b>改键与禁用, 恢复出厂默认并立即写入。已保存的配置档不受影响。下发期间请勿拔线或操作键盘。', okText: '确认还原', danger: true })) return;
   $('btn-factory').disabled = true;
   $('apply-btn').disabled = true;
   setStatus('正在恢复出厂…请勿触碰键盘/线缆');
