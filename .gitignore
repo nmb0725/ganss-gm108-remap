@@ -4,8 +4,8 @@ app/node_modules/
 app/dist/
 probe/node_modules/
 
-# 固件与官方工具(第三方版权文件, 请勿上传) / vendor firmware & OEM tools — do NOT publish
-firmware/
+# 固件与官方工具: 已随仓库发布(K3-BOOT 救援必需, 原版官方 OEM 工具, 版权归 GANSS/SONiX)
+# firmware/
 
 # 抓包日志与逆向中间产物 / capture logs & RE artifacts
 *.log

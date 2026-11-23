@@ -63,7 +63,7 @@ npm run dist        # 产物在 app/dist/ 下的 *-portable.exe
 - **检测不到设备**：关闭官方老配置软件后重插 USB。
 - **下发中止（红字熔断）**：重插 USB 重试，键盘不受影响。
 - **键盘完全无反应（灯全灭）**：需开壳用 K3-BOOT 触点进入刷固件模式，再用**官方**刷写工具重刷固件。具体步骤见应用内「帮助 / 救援」页。
-  - ⚠️ 官方刷写工具与固件为第三方版权文件，**未包含在本仓库**，请自行从可靠渠道备份。
+  - ✅ 官方刷写工具已随本仓库发布：[`firmware/GM108_Keyboard_V1.16_0304_firmware.exe`](firmware/GM108_Keyboard_V1.16_0304_firmware.exe)（原版 OEM 工具，版权归 GANSS/SONiX 所有；`firmware/` 内另有 rar 原包与固件提取分析产物，仅供救援与研究）。**请下载本仓库后妥善备份该 exe。**
   - ⚠️ 严禁用第三方烧录器直接刷 `.bin`，官方刷写含传输加密，第三方刷入会变砖。
 
 ### 许可
@@ -128,7 +128,7 @@ The `probe/` directory retains reverse-engineering and capture helper scripts fo
 - **Device not detected**: close the legacy GANSS software, then replug USB.
 - **Write aborted (red circuit-breaker message)**: replug USB and retry; the keyboard is unaffected.
 - **Keyboard completely dead (all lights off)**: requires opening the case and entering bootloader mode via the K3-BOOT test point, then reflashing firmware with the **official** tool. See the in-app "Help / Recovery" page.
-  - ⚠️ The official flashing tool and firmware are third-party copyrighted files and are **not included in this repository** — back them up yourself from a reliable source.
+  - ✅ The official flashing tool ships with this repository: [`firmware/GM108_Keyboard_V1.16_0304_firmware.exe`](firmware/GM108_Keyboard_V1.16_0304_firmware.exe) (unmodified OEM tool; copyright belongs to GANSS/SONiX. The `firmware/` folder also contains the original rar and extracted firmware analysis artifacts, for recovery & research only). Back up this exe after cloning.
   - ⚠️ Never flash a `.bin` with a third-party programmer; the official flash involves transfer encryption and third-party flashing will brick the board.
 
 ### License
