@@ -9,11 +9,26 @@ const BLOCK_BYTES = 64;
 const MIN_CELL = 1, MAX_CELL = 143; // gkdb 证实有效 KeyIndex 范围; cell*4+4 <= 576 < 638, 不与 aa55 冲突
 const DISABLE_BYTES = Buffer.from([0x05, 0x03, 0x00, 0x00]);
 
+// 宏库段(04 15): 13块x64B=832B。布局(金样 golden_default.log 逐字节证实):
+//   [0,400)   100 x u32LE 指针表(槽0..99, 值=数据区字节偏移, 0=未用)
+//   [400,830) 数据区, 各宏入口按槽号升序紧密拼接
+//   每入口 = count_u32LE + 6x00 + 事件流;  count = Σ(1 + (delay>0 ? 1 : 0))
+//   事件 = <usage> <b0按下/30释放> <delay_u16LE>; delay>0 追加 00 50, 非末条再补 00 00 (整条8B)
+//   [830,832) aa 55
+const MACRO_SLOTS = 100;
+const MACRO_POOL = 400;
+const MACRO_SEG_BYTES = 832;
+const MACRO_BLOCKS = 13;
+const MAX_DELAY_MS = 65535;
+
 const CMD = {
   hb: [0x04, 0x18],
   begin: [0x04, 0xab],
   status: [0x04, 0x02],
-  keymapHeader: [0x04, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, N_BLOCKS] // 金样: 6 个填充零, 块数在第 8 字节
+  keymapHeader: [0x04, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, N_BLOCKS], // 金样: 6 个填充零, 块数在第 8 字节
+  macroHeader: [0x04, 0x15, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, MACRO_BLOCKS],
+  macroCount: [0x04, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 1],
+  commit: [0x04, 0xf0] // 金样: 13段与17段之间发射一次, 无 GET (发射后不管)
 };
 
 class ProtocolAbort extends Error {
@@ -75,17 +90,61 @@ function buildKeymap(config) {
         buf[at + 1 + i] = k;
       });
     }
+    // 宏绑定(金样锚: FWMacro 槽5 的宏绑到键 = 06 05 00 00): 06 <槽号> 00 00
+    else if (o.action === 'macro') {
+      if (!Number.isInteger(o.slot) || o.slot < 0 || o.slot >= MACRO_SLOTS) throw new ProtocolAbort('build', `宏槽号无效: ${o.slot} (需 0..99)`);
+      buf[at] = 0x06; buf[at + 1] = o.slot;
+    }
     else throw new ProtocolAbort('build', `未知动作: ${o.action}`);
   }
   buf[638] = 0xaa; buf[639] = 0x55;
   return buf;
 }
 
-function splitBlocks(seg) {
-  if (seg.length !== SEG_BYTES) throw new ProtocolAbort('build', `键位段长度 ${seg.length} != ${SEG_BYTES}`);
+function splitBlocks(seg, n = N_BLOCKS, total = SEG_BYTES) {
+  if (seg.length !== total) throw new ProtocolAbort('build', `段长度 ${seg.length} != ${total}`);
   const out = [];
-  for (let i = 0; i < N_BLOCKS; i++) out.push(Buffer.from(seg.subarray(i * BLOCK_BYTES, (i + 1) * BLOCK_BYTES)));
+  for (let i = 0; i < n; i++) out.push(Buffer.from(seg.subarray(i * BLOCK_BYTES, (i + 1) * BLOCK_BYTES)));
   return out;
+}
+
+// 宏库 [{slot, name, steps:[{hid, down, delay}]}] -> { seg15(832B), seg17(64B) }
+// steps = 按下/释放事件序列, delay = 该事件之后的等待毫秒(0..65535)。宏名仅本工具展示用, 不上线。
+function buildMacroSegments(library) {
+  const seg = Buffer.alloc(MACRO_SEG_BYTES);
+  const sorted = [...(library || [])].sort((a, b) => (a.slot | 0) - (b.slot | 0));
+  const seen = new Set();
+  let pool = MACRO_POOL;
+  for (const m of sorted) {
+    if (!Number.isInteger(m.slot) || m.slot < 0 || m.slot >= MACRO_SLOTS) throw new ProtocolAbort('macro', `槽号越界: ${m.slot} (需 0..99)`);
+    if (seen.has(m.slot)) throw new ProtocolAbort('macro', `槽号重复: ${m.slot}`);
+    seen.add(m.slot);
+    const steps = Array.isArray(m.steps) ? m.steps : [];
+    if (!steps.length) throw new ProtocolAbort('macro', `槽 ${m.slot} "${m.name || ''}" 没有步骤`);
+    let count = 0, entryLen = 10;
+    for (const s of steps) {
+      if (!Number.isInteger(s.hid) || s.hid < 1 || (s.hid > 0xdf && (s.hid < 0xe0 || s.hid > 0xe7))) throw new ProtocolAbort('macro', `槽 ${m.slot} 键无效: ${s.hid}`);
+      if (!Number.isInteger(s.delay) || s.delay < 0 || s.delay > MAX_DELAY_MS) throw new ProtocolAbort('macro', `槽 ${m.slot} 间隔无效 (需 0..${MAX_DELAY_MS}ms): ${s.delay}`);
+      count += 1 + (s.delay > 0 ? 1 : 0);
+      entryLen += 4 + (s.delay > 0 ? 4 : 0);
+    }
+    entryLen -= 2; // 金样: 入口尾部 2 个零字节被截断(末条 d0 => 2B, 末条 d>0 => 6B)
+    if (pool + entryLen > MACRO_SEG_BYTES - 2) throw new ProtocolAbort('macro', `宏数据区溢出: 槽 ${m.slot} 需 ${entryLen}B, 仅剩 ${MACRO_SEG_BYTES - 2 - pool}B`);
+    seg.writeUInt32LE(pool, m.slot * 4);
+    let o = pool;
+    seg.writeUInt32LE(count, o); o += 10; // count + 6 零
+    for (const s of steps) {
+      seg[o] = s.hid; seg[o + 1] = s.down ? 0xb0 : 0x30; seg.writeUInt16LE(s.delay, o + 2); o += 4;
+      if (s.delay > 0) { seg[o] = 0x00; seg[o + 1] = 0x50; seg[o + 2] = 0; seg[o + 3] = 0; o += 4; }
+    }
+    while (o > pool + 10 && seg[o - 1] === 0x00) o--; // 截尾零 (cmd/usage 恒非零, 不会截过界)
+    pool = o;
+  }
+  seg[MACRO_SEG_BYTES - 2] = 0xaa; seg[MACRO_SEG_BYTES - 1] = 0x55;
+  const seg17 = Buffer.alloc(BLOCK_BYTES);
+  seg17[0] = seen.size; // 金样: 10 个宏 => 0x0a
+  seg17[62] = 0xaa; seg17[63] = 0x55;
+  return { seg15: seg, seg17 };
 }
 
 const briefHex = r => Buffer.from(r.subarray(0, 8)).toString('hex').replace(/(..)/g, '$1 ');
@@ -100,48 +159,66 @@ function verifyResp(r, cmdByte, step) {
 }
 
 // 会话编排。dev 需提供 set(bytes64)/get()->Buffer|null/close()。任一 verify 失败立即抛出, 之后 transport 拒绝再发。
-async function runKeymapSession(dev, seg, opts = {}) {
+// 单段写会话 (金样时序): ab → 随机块(不读) → 02 → 头(块数)+数据块 → 02
+async function runSegmentSession(dev, header, cmdByte, blocks, opts = {}) {
   const sleep = opts.sleep || (ms => new Promise(r => setTimeout(r, ms)));
   const rng = opts.rng || (n => crypto.randomBytes(n));
-  const blocks = splitBlocks(seg);
   const step = async (name, fn) => { try { return await fn(); } catch (e) { try { dev.close(); } catch {} throw e; } };
 
+  await step('begin', async () => {
+    dev.set(Buffer.from(CMD.begin));
+    verifyResp(dev.get(), 0xab, 'begin');
+  });
+  await step('challenge', async () => { dev.set(rng(BLOCK_BYTES)); });
+  await step('status1', async () => {
+    dev.set(Buffer.from(CMD.status));
+    verifyResp(dev.get(), 0x02, 'status1');
+  });
+  await step('header', async () => {
+    dev.set(Buffer.from(header));
+    verifyResp(dev.get(), cmdByte, 'header');
+  });
+  // 数据块 (线上协议此处无逐包应答, 老软件 12ms 间隔)
+  await step('blocks', async () => {
+    for (const b of blocks) { dev.set(b); await sleep(12); }
+  });
+  // 收尾状态 (比老软件多一次 verify, 确认写后会话设备仍活)
+  await step('status2', async () => {
+    dev.set(Buffer.from(CMD.status));
+    verifyResp(dev.get(), 0x02, 'status2');
+  });
+}
+
+async function runKeymapSession(dev, seg, opts = {}) {
+  const step = async (name, fn) => { try { return await fn(); } catch (e) { try { dev.close(); } catch {} throw e; } };
   // 0. 预检心跳: 设备不应答就绝不进入写会话 (变砖事故教训)
   await step('preflight', async () => {
     dev.set(Buffer.from(CMD.hb));
     verifyResp(dev.get(), 0x18, 'preflight');
   });
-  // 1. 握手
-  await step('begin', async () => {
-    dev.set(Buffer.from(CMD.begin));
-    verifyResp(dev.get(), 0xab, 'begin');
-  });
-  // 2. 随机挑战块 (老软件行为: 发后不读)
-  await step('challenge', async () => { dev.set(rng(BLOCK_BYTES)); });
-  // 3. 状态查询 (设备回 4 字节状态)
-  await step('status1', async () => {
-    dev.set(Buffer.from(CMD.status));
-    verifyResp(dev.get(), 0x02, 'status1');
-  });
-  // 4. 键位段头
-  await step('header', async () => {
-    dev.set(Buffer.from(CMD.keymapHeader));
-    verifyResp(dev.get(), 0x11, 'header');
-  });
-  // 5. 数据块 (线上协议此处无逐包应答, 老软件 12ms 间隔)
-  await step('blocks', async () => {
-    for (const b of blocks) { dev.set(b); await sleep(12); }
-  });
-  // 6. 收尾状态 (比老软件多一次 verify, 确认写后会话设备仍活)
-  await step('status2', async () => {
-    dev.set(Buffer.from(CMD.status));
-    verifyResp(dev.get(), 0x02, 'status2');
-  });
+  await runSegmentSession(dev, CMD.keymapHeader, 0x11, splitBlocks(seg), opts);
   await step('final-hb', async () => {
     dev.set(Buffer.from(CMD.hb));
     verifyResp(dev.get(), 0x18, 'final-hb');
   });
   return { ok: true, bytes: SEG_BYTES };
+}
+
+// 宏写入会话 (金样时序: f0(无GET) → 17段会话 → 15段会话)。在键位段会话之后调用。
+async function runMacroWriteSession(dev, seg15, seg17, opts = {}) {
+  const step = async (name, fn) => { try { return await fn(); } catch (e) { try { dev.close(); } catch {} throw e; } };
+  await step('preflight', async () => {
+    dev.set(Buffer.from(CMD.hb));
+    verifyResp(dev.get(), 0x18, 'preflight');
+  });
+  await step('commit', async () => { dev.set(Buffer.from(CMD.commit)); }); // 发射后不管, 金样此处无 GET
+  await runSegmentSession(dev, CMD.macroCount, 0x17, [Buffer.from(seg17)], opts);
+  await runSegmentSession(dev, CMD.macroHeader, 0x15, splitBlocks(seg15, MACRO_BLOCKS, MACRO_SEG_BYTES), opts);
+  await step('final-hb', async () => {
+    dev.set(Buffer.from(CMD.hb));
+    verifyResp(dev.get(), 0x18, 'final-hb');
+  });
+  return { ok: true, bytes: MACRO_SEG_BYTES + BLOCK_BYTES };
 }
 
 // 心跳延迟探测 (ms), 设备异常返回 null
@@ -164,4 +241,9 @@ function readFirmwareVersion(dev) {
   return `${r[5]}.${r[6]}`;
 }
 
-module.exports = { SEG_BYTES, N_BLOCKS, BLOCK_BYTES, MIN_CELL, MAX_CELL, CMD, ProtocolAbort, buildKeymap, splitBlocks, verifyResp, runKeymapSession, probeHeartbeat, readFirmwareVersion };
+module.exports = {
+  SEG_BYTES, N_BLOCKS, BLOCK_BYTES, MIN_CELL, MAX_CELL,
+  MACRO_SLOTS, MACRO_SEG_BYTES, MACRO_BLOCKS, MAX_DELAY_MS,
+  CMD, ProtocolAbort, buildKeymap, buildMacroSegments, splitBlocks, verifyResp,
+  runKeymapSession, runMacroWriteSession, probeHeartbeat, readFirmwareVersion
+};

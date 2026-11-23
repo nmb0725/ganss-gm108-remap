@@ -64,4 +64,22 @@ function setCell(config, cell, action, target) {
   return config;
 }
 
-module.exports = { SCHEMA, ConfigStore, factoryDefault, computeDiff, setCell };
+// 宏库: 设备全局(不随配置档走), 独立存档 <file> = [{slot, name, steps:[{hid, down, delay}]}]
+const MACRO_SCHEMA = 1;
+class MacroStore {
+  constructor(file) { this.file = file; fs.mkdirSync(path.dirname(file), { recursive: true }); }
+  load() {
+    let raw;
+    try { raw = JSON.parse(fs.readFileSync(this.file, 'utf8')); }
+    catch (e) { if (e.code === 'ENOENT') return []; throw e; }
+    if (raw.schema !== MACRO_SCHEMA) throw new Error(`宏库 schema 版本 ${raw.schema} 与当前 ${MACRO_SCHEMA} 不兼容`);
+    return Array.isArray(raw.slots) ? raw.slots : [];
+  }
+  save(slots) {
+    fs.writeFileSync(this.file + '.tmp', JSON.stringify({ schema: MACRO_SCHEMA, slots }, null, 1));
+    fs.renameSync(this.file + '.tmp', this.file);
+    return this.file;
+  }
+}
+
+module.exports = { SCHEMA, ConfigStore, MacroStore, factoryDefault, computeDiff, setCell };

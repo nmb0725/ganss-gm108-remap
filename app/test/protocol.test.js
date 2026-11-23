@@ -195,3 +195,93 @@ test('配置档: 保存/读取/列表/导入导出 + 差异计算', () => {
   assert.deepStrictEqual(round, back);
   assert.throws(() => store.importText('{"schema":99}'), /不兼容/);
 });
+
+// ---- 宏 ----
+const GOLDEN_MACRO = fix('golden-macro.json');
+// 金样宏库 = 老软件 gkdb 的 10 个宏 (VK→HID usage 换算; DB 里 GROUPR 尾部失效的 3,3000 行不计, 与 StepCount=5 一致)
+const S = (hid, down, delay) => ({ hid, down, delay });
+const MACRO_LIB = [
+  { slot: 0, name: 'eee', steps: [S(0x08, 1, 0), S(0x08, 0, 180)] },
+  { slot: 1, name: 'ctrrrl1', steps: [S(0xe0, 1, 34), S(0x1e, 1, 210), S(0xe0, 0, 24), S(0x1e, 0, 0)] },
+  { slot: 2, name: 'ctrl2', steps: [S(0xe0, 1, 35), S(0x1f, 1, 173), S(0x1f, 0, 7), S(0xe0, 0, 0)] },
+  { slot: 3, name: 'ctrl3', steps: [S(0xe0, 1, 28), S(0x20, 1, 95), S(0x20, 0, 28), S(0xe0, 0, 0)] },
+  { slot: 4, name: 'ctrl4', steps: [S(0xe0, 1, 38), S(0x21, 1, 84), S(0x21, 0, 9), S(0xe0, 0, 0)] },
+  { slot: 5, name: 'ctrl5', steps: [S(0xe0, 1, 10), S(0x22, 1, 84), S(0x22, 0, 11), S(0xe0, 0, 0)] },
+  { slot: 6, name: '6soundstart', steps: [S(0x2b, 1, 5), S(0x2b, 0, 900), S(0x14, 1, 5), S(0x14, 0, 1600), S(0x35, 1, 5), S(0x35, 0, 900), S(0x2b, 1, 5), S(0x2b, 0, 0)] },
+  { slot: 7, name: 'GROUPR', steps: [S(0xe0, 1, 100), S(0x15, 1, 50), S(0x15, 0, 0)] },
+  { slot: 8, name: 'Groupr1', steps: [S(0xe4, 1, 100), S(0x15, 1, 50), S(0x15, 0, 0)] },
+  { slot: 9, name: 'RRR holding', steps: [S(0x15, 1, 1000), S(0x15, 0, 1000), S(0x15, 1, 1000), S(0x15, 0, 0)] }
+];
+const macroBlocks = buf => {
+  const out = [];
+  for (let i = 0; i < 13; i++) out.push(buf.subarray(i * 64, (i + 1) * 64).toString('hex'));
+  return out;
+};
+
+test('宏库段: 10 个金样宏必须逐字节复现老软件 04 15 / 04 17 段', () => {
+  const { seg15, seg17 } = P.buildMacroSegments(MACRO_LIB);
+  assert.deepStrictEqual(macroBlocks(seg15), GOLDEN_MACRO.blocks15);
+  assert.strictEqual(seg17.toString('hex'), GOLDEN_MACRO.blocks17[0]);
+});
+
+test('宏段头包与金样一致 (15: 13块, 17: 1块)', () => {
+  const mk = c => { const b = Buffer.alloc(65); Buffer.from(c).copy(b, 1); return b.toString('hex'); };
+  assert.strictEqual(mk(P.CMD.macroHeader), GOLDEN_MACRO.header15);
+  assert.strictEqual(mk(P.CMD.macroCount), GOLDEN_MACRO.header17);
+});
+
+test('宏绑定: 键位格 = 06 <槽号> 00 00 (金样锚 ctrl5 → 06 05)', () => {
+  const seg = P.buildKeymap({ overrides: [{ cell: 40, action: 'macro', slot: 5, target: 'ctrl5' }] });
+  assert.strictEqual(seg.subarray(40 * 4, 40 * 4 + 4).toString('hex'), '06050000');
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 40, action: 'macro', slot: 100 }] }), /槽号无效/);
+});
+
+test('宏库构建校验: 槽号/步骤/间隔/溢出 拒绝', () => {
+  assert.throws(() => P.buildMacroSegments([{ slot: 100, steps: [S(4, 1, 0)] }]), /槽号越界/);
+  assert.throws(() => P.buildMacroSegments([{ slot: 1, steps: [S(4, 1, 0)] }, { slot: 1, steps: [S(5, 1, 0)] }]), /槽号重复/);
+  assert.throws(() => P.buildMacroSegments([{ slot: 2, steps: [] }]), /没有步骤/);
+  assert.throws(() => P.buildMacroSegments([{ slot: 2, steps: [S(0, 1, 0)] }]), /键无效/);
+  assert.throws(() => P.buildMacroSegments([{ slot: 2, steps: [S(4, 1, 65536)] }]), /间隔无效/);
+  const big = [{ slot: 0, steps: Array(60).fill(S(4, 1, 100)) }];
+  assert.throws(() => P.buildMacroSegments(big), /溢出/);
+});
+
+test('空宏库: 15段全零+aa55, 17段计数0', () => {
+  const { seg15, seg17 } = P.buildMacroSegments([]);
+  assert.strictEqual(seg15.length, 832);
+  assert.strictEqual(seg15.subarray(0, 830).every(b => !b), true);
+  assert.strictEqual(seg15.readUInt16LE(830), 0x55aa);
+  assert.strictEqual(seg17[0], 0);
+});
+
+test('宏写入会话时序: hb f0 | 17会话(6 SET) | 15会话(18 SET) | hb; f0 无 GET', async () => {
+  class CountDev extends FakeDev { constructor() { super(); this.gets = 0; } get() { this.gets++; return super.get(); } }
+  const dev = new CountDev();
+  const { seg15, seg17 } = P.buildMacroSegments(MACRO_LIB);
+  const r = await P.runMacroWriteSession(dev, seg15, seg17, { sleep: NO_SLEEP, rng: RNG });
+  assert.ok(r.ok);
+  assert.strictEqual(dev.sent.length, 27); // 1 + 6 + 18 + 1 + 1... hb(1) f0(1) s17(ab rand 02 17 blk 02 =6) s15(ab rand 02 15 13blk 02 =18) hb(1)
+  const tag = i => dev.sent[i][1];
+  assert.deepStrictEqual([tag(0), tag(1), tag(2), tag(4), tag(5), tag(7), tag(8), tag(10), tag(11), tag(25), tag(26)],
+    [0x18, 0xf0, 0xab, 0x02, 0x17, 0x02, 0xab, 0x02, 0x15, 0x02, 0x18]);
+  assert.strictEqual(dev.sent[6].toString('hex'), GOLDEN_MACRO.blocks17[0]); // 17 数据块
+  assert.deepStrictEqual(macroBlocks(Buffer.concat(dev.sent.slice(12, 25))), GOLDEN_MACRO.blocks15);
+  assert.strictEqual(dev.gets, 10); // f0 不读: 1 + 4 + 4 + 1
+});
+
+test('宏会话熔断: 无应答 => preflight 即止', async () => {
+  const dev = new FakeDev('noresp');
+  const { seg15, seg17 } = P.buildMacroSegments(MACRO_LIB);
+  await assert.rejects(P.runMacroWriteSession(dev, seg15, seg17, { sleep: NO_SLEEP, rng: RNG }),
+    e => e.name === 'ProtocolAbort' && e.step === 'preflight');
+  assert.strictEqual(dev.sent.length, 1);
+  assert.ok(dev.closed);
+});
+
+test('宏库存档: MacroStore 读写/缺省空', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ganss-macro-'));
+  const ms = new CS.MacroStore(path.join(dir, 'macros.json'));
+  assert.deepStrictEqual(ms.load(), []); // 文件不存在 => 空库
+  ms.save(MACRO_LIB);
+  assert.deepStrictEqual(ms.load(), MACRO_LIB);
+});

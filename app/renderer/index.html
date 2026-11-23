@@ -32,26 +32,24 @@
       <div class="hint" id="dirty-hint"></div>
     </aside>
 
-    <section id="keyboard"><svg id="kb-svg"></svg></section>
+    <div id="center">
+      <section id="keyboard"><svg id="kb-svg"></svg></section>
 
-    <aside id="inspector">
-      <h2>属性面板</h2>
-      <div id="insp-empty" class="hint">点击键盘上的键进行选择。</div>
-      <div id="insp-body" hidden>
-        <div id="insp-title"></div>
-        <div id="insp-cell" class="hint"></div>
-        <div id="fn-grid">
+      <section id="inspector">
+        <div id="insp-empty" class="hint">点击键盘上的键进行选择。</div>
+        <div id="insp-body" hidden>
+          <div id="fn-grid">
           <button class="fn-card" data-fn="default">默认</button>
           <button class="fn-card" data-fn="remap">键盘功能</button>
           <button class="fn-card" data-fn="mouse">鼠标功能</button>
-          <button class="fn-card off" data-fn="macro" title="宏内容存放在键盘的配置数据库里, 需要直写数据库协议, 暂未支持(规划中)">宏</button>
+          <button class="fn-card" data-fn="macro">宏</button>
           <button class="fn-card" data-fn="combo">连击键</button>
           <button class="fn-card" data-fn="media">多媒体键</button>
-          <button class="fn-card off" data-fn="mac" title="MAC 键编码无资料可考、无法实机验证, 暂不开放">MAC按键</button>
           <button class="fn-card" data-fn="disable">禁用</button>
         </div>
+        <div id="fn-editors">
         <div id="fn-remap" hidden>
-          <div id="fn-editor">
+          <div class="fn-editor remap-editor">
             <div id="mod-chips">
               <span class="chip" data-i="0">Ctrl</span>
               <span class="chip" data-i="1">Alt</span>
@@ -59,7 +57,8 @@
               <span class="chip" data-i="3">Win</span>
             </div>
             <input id="remap-capture" readonly placeholder="点击此处, 按下目标键 (可带 Ctrl/Alt/Shift/Win)" />
-            <select id="remap-special">
+            <div class="remap-picks">
+              <select id="remap-special">
               <option value="">捕捉不到的键(如 PrtSc)在此选择…</option>
               <option value="0|70|PrtSc">PrtSc</option>
               <option value="1|70|Ctrl + PrtSc">Ctrl + PrtSc</option>
@@ -81,11 +80,12 @@
               <option value="4|43|Alt + Tab">Alt + Tab — 切换窗口</option>
               <option value="4|61|Alt + F4">Alt + F4 — 关闭窗口</option>
               <option value="3|41|Ctrl + Shift + Esc">Ctrl + Shift + Esc — 任务管理器</option>
-            </select>
+              </select>
+            </div>
           </div>
         </div>
         <div id="fn-mouse" hidden>
-          <div id="fn-editor">
+          <div class="fn-editor">
             <select id="mouse-pick">
               <option value="">选择鼠标功能…</option>
               <option value="left">鼠标左键</option>
@@ -99,18 +99,27 @@
           </div>
         </div>
         <div id="fn-combo" hidden>
-          <div id="fn-editor">
+          <div class="fn-editor">
             <div id="combo-slots">
               <button class="combo-slot" data-i="0">键1</button>
               <button class="combo-slot" data-i="1">键2</button>
               <button class="combo-slot" data-i="2">键3</button>
             </div>
             <span id="combo-capture" tabindex="0"></span>
-            <div class="hint" style="margin-top:8px">点第一个空框后按键, 录 1~3 个键; 点已录的框可清除重录</div>
+            <div class="hint combo-tip">点第一个空框后按键, 录 1~3 个键; 点已录的框可清除重录</div>
+          </div>
+        </div>
+        <div id="fn-macro" hidden>
+          <div class="fn-editor">
+            <select id="macro-pick">
+              <option value="">选择宏槽…</option>
+            </select>
+            <button id="btn-mac-lib">管理宏库…</button>
+            <span class="hint">宏存放在键盘里、全局共享; 修改宏库后需点底部"写入到键盘"同步</span>
           </div>
         </div>
         <div id="fn-media" hidden>
-          <div id="fn-editor">
+          <div class="fn-editor">
             <select id="media-pick">
               <option value="">选择多媒体键…</option>
               <option value="226">静音</option>
@@ -126,9 +135,11 @@
             </select>
           </div>
         </div>
-        <button id="btn-apply-key" class="wide">应用</button>
-      </div>
-    </aside>
+        </div><!-- /fn-editors -->
+          <button id="btn-apply-key">应用</button>
+        </div><!-- /insp-body -->
+      </section>
+    </div><!-- /center -->
   </main>
 
   <footer id="statusbar">
@@ -136,6 +147,31 @@
     <span id="diff-summary"></span>
     <button id="apply-btn" disabled>写入到键盘</button>
   </footer>
+
+  <div id="mac-mgr" hidden>
+    <div id="mac-mgr-box">
+      <h3>宏库管理 <span class="mac-sub">宏存放在键盘里, 所有配置档共用 · 100 槽</span></h3>
+      <div id="mac-mgr-body">
+        <div id="mac-col1">
+          <select id="mac-slots" size="12"></select>
+          <button id="mac-new">+ 新建宏</button>
+          <button id="mac-del">删除此槽</button>
+        </div>
+        <div id="mac-col2">
+          <div class="mac-name-row"><label>名称</label><input id="mac-name" type="text" maxlength="16" placeholder="宏名称" /></div>
+          <div id="mac-rec-row">
+            <button id="mac-rec">● 开始录制</button>
+            <span id="mac-rec-tip" class="hint">点"开始录制"→ 像平时一样打字 → 点"停止"。按键与间隔都会记下; 表格里的间隔可手动改。</span>
+          </div>
+          <div id="mac-steps-wrap"><table id="mac-steps"><tbody></tbody></table></div>
+          <div class="row right">
+            <button id="mac-close">关闭</button>
+            <button id="mac-save">保存宏</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="modal" hidden>
     <div id="modal-box">
@@ -155,7 +191,7 @@
       <div id="help-body">
         <h4>基本用法</h4>
         <ol>
-          <li>点击键盘上的键, 在右侧属性面板选功能卡片: 默认 / 键盘功能(含组合键捕捉) / 禁用; 灰色卡片为本键盘固件不支持的功能。</li>
+          <li>点击键盘上的键, 在键盘下方的属性面板选功能卡片: 默认 / 键盘功能(含组合键捕捉) / 禁用; 灰色卡片为本键盘固件不支持的功能。</li>
           <li>每次点"应用"只是改<b>软件里的草稿</b>, 不会碰键盘。</li>
           <li>确认底部"待下发变更"无误后, 点"写入到键盘"才会真正写入。下发期间请勿拔线或按键。</li>
           <li>改错了随时选中该键选"默认功能"再下发即可恢复; 或直接点顶栏"一键还原"清除全部改动并写回默认。</li>

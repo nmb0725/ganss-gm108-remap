@@ -3,7 +3,7 @@
 // 协议逻辑/熔断规则全部复用 main/protocol.js (纯函数, 可在 worker 里安全运行)。
 const { parentPort } = require('worker_threads');
 const { HidTransport } = require('./hid-transport');
-const { runKeymapSession, readFirmwareVersion } = require('./protocol');
+const { runKeymapSession, runMacroWriteSession, readFirmwareVersion } = require('./protocol');
 
 function fail(e) { return { ok: false, error: e.message || String(e) }; }
 
@@ -15,6 +15,8 @@ parentPort.on('message', async (msg) => {
       parentPort.postMessage({ id: msg.id, ok: true, result: readFirmwareVersion(t) });
     } else if (msg.op === 'apply') {
       const r = await runKeymapSession(t, Buffer.from(msg.segHex, 'hex'));
+      // 宏库有变更时追加宏段会话 (金样时序: f0 → 17 → 15), 熔断规则一致
+      if (msg.macro15Hex) await runMacroWriteSession(t, Buffer.from(msg.macro15Hex, 'hex'), Buffer.from(msg.macro17Hex, 'hex'));
       parentPort.postMessage({ id: msg.id, ok: true, result: r });
     } else {
       parentPort.postMessage({ id: msg.id, ok: false, error: '未知操作: ' + msg.op });

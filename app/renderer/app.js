@@ -9,7 +9,9 @@ const shortName = k => (k.tip || k.l).split(' (')[0];
 // ---- 状态 ----
 let config = null;          // 正在编辑的配置 {schema,name,overrides}
 let applied = null;         // 已下发到键盘的配置
-let currentProfile = null;  // 侧栏选中的档名
+let appliedMacros;          // 已下发到键盘的宏库; undefined=老档无此字段(设备宏状态未知)
+let macroLib = [];          // 当前宏库 [{slot,name,steps}] (设备全局, 不随配置档)
+let currentProfile = null;
 let selKey = null;
 let device = { present: false };
 
@@ -121,6 +123,7 @@ function normOv(ov) {
 const CHIP_DEFS = [['Ctrl', 0x01, 0x10], ['Alt', 0x04, 0x40], ['Shift', 0x02, 0x20], ['Win', 0x08, 0x80]];
 function renderRemapSlots() {
   const mod = capturing ? liveMod : (captured ? (captured.mods || 0) : 0);
+  capBox.classList.toggle('mod', mod !== 0); // 带修饰键的组合: 捕捉框变紫
   document.querySelectorAll('#mod-chips .chip').forEach(c => {
     const [name, l, r] = CHIP_DEFS[Number(c.dataset.i)];
     const on = mod & (l | r);
@@ -137,6 +140,7 @@ function renderFnPanel() {
   $('fn-remap').hidden = fnSel !== 'remap';
   $('fn-mouse').hidden = fnSel !== 'mouse';
   $('fn-combo').hidden = fnSel !== 'combo';
+  $('fn-macro').hidden = fnSel !== 'macro';
   $('fn-media').hidden = fnSel !== 'media';
 }
 // Windows 快捷键预设 = 同一套 02 <修饰位> <usage> 00 线格式, 记录后与键盘功能共用应用逻辑
@@ -217,6 +221,14 @@ capBox.addEventListener('blur', () => {
   renderRemapSlots();
 });
 document.addEventListener('keydown', e => {
+  if (mmRec) { // 宏录制模式: 吞掉所有键, 只记事件
+    e.preventDefault(); e.stopPropagation();
+    if (e.repeat) return;
+    const mh = MOD_HID[e.code];
+    const t = mh ? { hid: mh[0], label: mh[1] } : CODE_MAP[e.code];
+    if (t) mmRec.events.push({ hid: t.hid, label: t.label, down: true, t: Date.now() });
+    return;
+  }
   if (comboCapturing) {
     e.preventDefault(); e.stopPropagation();
     if (e.repeat) return;
@@ -245,6 +257,13 @@ document.addEventListener('keydown', e => {
 }, true);
 // 修饰键全部抬手: 若期间没按过主键, 目标就是这组修饰键本身 (如 Caps→右Ctrl)
 document.addEventListener('keyup', e => {
+  if (mmRec) { // 宏录制: 记录释放时刻
+    e.preventDefault(); e.stopPropagation();
+    const mh = MOD_HID[e.code];
+    const t = mh ? { hid: mh[0], label: mh[1] } : CODE_MAP[e.code];
+    if (t) mmRec.events.push({ hid: t.hid, label: t.label, down: false, t: Date.now() });
+    return;
+  }
   if (!capturing || !MOD_BIT[e.code]) return;
   e.preventDefault(); e.stopPropagation();
   liveMod &= ~MOD_BIT[e.code];
@@ -262,12 +281,9 @@ function selectKey(k, g) {
   $('insp-empty').hidden = true;
   $('insp-body').hidden = false;
   const editable = k.cell != null;
-  $('insp-title').textContent = shortName(k);
-  $('insp-cell').innerHTML = editable
-    ? `格号(KeyIndex): <b>${k.cell}</b>`
-    : '<span class="conf-q">格号未定, 本期不可编辑 (校准后开放)</span>';
+  if (!editable) setStatus(shortName(k) + ': 该键格号未定, 本期不可编辑', 'err');
   const act = editable ? actionOf(k.cell) : 'default';
-  fnSel = ['default', 'remap', 'mouse', 'combo', 'media', 'disable'].includes(act) ? act : 'default';
+  fnSel = ['default', 'remap', 'mouse', 'combo', 'macro', 'media', 'disable'].includes(act) ? act : 'default';
   const ov = (config.overrides || []).find(o => o.cell === k.cell);
   captured = act === 'remap' && ov ? normOv(ov) : null;
   renderRemapSlots();
@@ -277,6 +293,8 @@ function selectKey(k, g) {
   $('media-pick').value = mediaPick ? String(mediaPick.usage) : '';
   comboCap = act === 'combo' && ov ? { keys: ov.keys.slice(), labels: ov.target.split(' + '), target: ov.target } : null;
   renderComboSlots();
+  populateMacroPick();
+  $('macro-pick').value = act === 'macro' && ov ? String(ov.slot) : '';
   renderFnPanel();
   $('btn-apply-key').disabled = !editable;
 }
@@ -299,6 +317,11 @@ $('btn-apply-key').addEventListener('click', () => {
   } else if (act === 'combo') {
     if (!comboCap || !comboCap.keys.length) { setStatus('请先在输入框依次按下 1~3 个键', 'err'); return; }
     entry = { cell: selKey.cell, action: 'combo', keys: comboCap.keys, target: comboCap.target };
+  } else if (act === 'macro') {
+    const v = $('macro-pick').value;
+    if (v === '') { setStatus('请先选择一个宏槽 (可点"管理宏库…"新建)', 'err'); return; }
+    const m = macroLib.find(x => x.slot === Number(v));
+    entry = { cell: selKey.cell, action: 'macro', slot: Number(v), target: (m && m.name) || ('槽' + v) };
   }
   if (act === 'default') { if (idx >= 0) config.overrides.splice(idx, 1); }
   else if (idx >= 0) config.overrides[idx] = entry;
@@ -308,13 +331,18 @@ $('btn-apply-key').addEventListener('click', () => {
 });
 
 // ---- 状态栏 / 差异 ----
+// 宏库是设备全局的: 与"已下发宏库"不同就是一次待下发变更 (老档无 macros 字段时, 仅本地库非空算变更)
+const libDirty = () => appliedMacros === undefined
+  ? macroLib.length > 0
+  : JSON.stringify(macroLib) !== JSON.stringify(appliedMacros || []);
 function markDirty() {
-  const n = diffList().length;
-  $('diff-summary').textContent = n ? `待下发变更: ${n} 处` : '';
-  $('apply-btn').disabled = !(n && device.present && device.mode === 'normal');
+  const n = diffList().length, md = libDirty();
+  $('diff-summary').textContent =
+    (n ? `待下发变更: ${n} 处` : '') + (md ? (n ? ' + ' : '待下发变更: ') + `宏库 (${macroLib.length} 个宏)` : '');
+  $('apply-btn').disabled = !((n || md) && device.present && device.mode === 'normal');
   $('btn-factory').disabled = !(device.present && device.mode === 'normal');
   $('dirty-hint').textContent = (currentProfile ? `当前档: ${currentProfile}` : '未保存的新配置') +
-    (JSON.stringify(config.overrides) !== JSON.stringify((applied || { overrides: [] }).overrides) ? ' (与键盘已应用状态不同)' : '');
+    (JSON.stringify(config.overrides) !== JSON.stringify((applied || { overrides: [] }).overrides) || md ? ' (与键盘已应用状态不同)' : '');
 }
 function setStatus(msg, cls) {
   const el = $('status-text');
@@ -348,17 +376,20 @@ $('help').addEventListener('click', e => { if (e.target === $('help')) $('help')
 const keyNameByCell = new Map(KEYBOARD.filter(k => k.cell != null).map(k => [k.cell, shortName(k)]));
 $('apply-btn').addEventListener('click', async () => {
   const diff = diffList();
-  if (!diff.length) return;
+  if (!diff.length && !libDirty()) return;
   const body = diff.map(o =>
-    `<div class="chg">#${o.cell} ${keyNameByCell.get(o.cell) || '未知键'} → ${o.action === 'disable' ? '禁用' : o.action === 'default' ? '恢复默认' : ({ remap: '改键→', mouse: '鼠标→', media: '多媒体→', combo: '连击→' })[o.action] + (o.target || '')}</div>`
-  ).join('') + '<p style="margin-top:10px">下发期间请勿拔线或操作键盘。</p>';
-  if (!await askDialog({ title: `确认写入键盘 (${diff.length} 处变更)`, bodyHTML: body, okText: '确认写入键盘', danger: true })) return;
+    `<div class="chg">#${o.cell} ${keyNameByCell.get(o.cell) || '未知键'} → ${o.action === 'disable' ? '禁用' : o.action === 'default' ? '恢复默认' : ({ remap: '改键→', mouse: '鼠标→', media: '多媒体→', combo: '连击→', macro: '宏→' })[o.action] + (o.target || '')}</div>`
+  ).join('') +
+    (libDirty() ? `<div class="chg">宏库更新: 共 ${macroLib.length} 个宏, 将同步写入键盘 (全局, 所有配置档共用)</div>` : '') +
+    '<p style="margin-top:10px">下发期间请勿拔线或操作键盘。</p>';
+  if (!await askDialog({ title: `确认写入键盘 (${diff.length} 处变更${libDirty() ? ' + 宏库' : ''})`, bodyHTML: body, okText: '确认写入键盘', danger: true })) return;
   $('apply-btn').disabled = true;
   setStatus('正在下发…请勿触碰键盘/线缆');
   const r = await window.api.applyConfig(config);
   if (r.ok) {
     applied = JSON.parse(JSON.stringify(config));
-    setStatus(`下发成功: ${r.changed} 个键已更新`, 'ok');
+    appliedMacros = JSON.parse(JSON.stringify(macroLib));
+    setStatus(`下发成功: ${r.changed} 个键已更新${r.macros ? ' · 宏库已同步' : ''}`, 'ok');
   } else {
     setStatus('下发中止: ' + r.error, 'err');
   }
@@ -375,6 +406,7 @@ $('btn-factory').addEventListener('click', async () => {
   const r = await window.api.applyConfig(factory);
   if (r.ok) {
     applied = JSON.parse(JSON.stringify(factory));
+    appliedMacros = JSON.parse(JSON.stringify(macroLib)); // 一键还原不清宏库(设备全局), 与老软件一致
     loadConfig(JSON.parse(JSON.stringify(applied)), null);
     await refreshProfiles();
     setStatus('已恢复出厂设置', 'ok');
@@ -386,6 +418,12 @@ $('btn-factory').addEventListener('click', async () => {
 });
 
 // ---- 配置档 ----
+// getApplied 现在返回 {config, macros}; 统一经 loadAppliedDoc 刷新 applied/appliedMacros
+async function loadAppliedDoc() {
+  const d = await window.api.getApplied();
+  applied = d.config; appliedMacros = d.macros;
+  return applied;
+}
 async function refreshProfiles() {
   const list = await window.api.listProfiles();
   const ul = $('profile-list');
@@ -396,7 +434,7 @@ async function refreshProfiles() {
     li.textContent = name === '__applied__' ? '⌨ 键盘当前状态' : name;
     if (name === currentProfile || (name === '__applied__' && currentProfile === null)) li.classList.add('active');
     li.addEventListener('click', async () => {
-      if (name === '__applied__') loadConfig(await window.api.getApplied(), null);
+      if (name === '__applied__') loadConfig(JSON.parse(JSON.stringify(await loadAppliedDoc())), null);
       else loadConfig(await window.api.loadProfile(name), name);
     });
     ul.appendChild(li);
@@ -461,6 +499,146 @@ $('btn-import').addEventListener('click', async () => {
   setStatus('导入成功 (未保存, 可另存为)', 'ok');
 });
 
+// ---- 宏库 ----
+function populateMacroPick() {
+  const sel = $('macro-pick'), cur = sel.value;
+  sel.innerHTML = '<option value="">选择宏槽…</option>';
+  for (const m of macroLib) {
+    const o = document.createElement('option');
+    o.value = String(m.slot); o.textContent = `槽 ${m.slot} · ${m.name}`;
+    sel.appendChild(o);
+  }
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+const mmLabelOf = hid => {
+  const mh = Object.values(MOD_HID).find(v => v[0] === hid);
+  if (mh) return mh[1];
+  const c = Object.values(CODE_MAP).find(v => v.hid === hid);
+  return c ? c.label : '0x' + hid.toString(16);
+};
+const macMgr = $('mac-mgr');
+let mmSel = null, mmDraft = [], mmRec = null;
+
+function mmRenderList() {
+  const sel = $('mac-slots');
+  sel.innerHTML = '';
+  for (const m of macroLib) {
+    const o = document.createElement('option');
+    o.value = String(m.slot); o.textContent = `槽 ${m.slot} · ${m.name} (${m.steps.length} 步)`;
+    sel.appendChild(o);
+  }
+  if (mmSel != null && !macroLib.some(m => m.slot === mmSel)) {
+    const o = document.createElement('option');
+    o.value = String(mmSel); o.textContent = `槽 ${mmSel} · (未保存)`;
+    sel.appendChild(o);
+  }
+  sel.value = mmSel == null ? '' : String(mmSel);
+  $('mac-del').disabled = !(mmSel != null && macroLib.some(m => m.slot === mmSel));
+}
+function mmRenderSteps() {
+  const tb = $('mac-steps').tBodies[0];
+  tb.innerHTML = '';
+  if (!mmDraft.length) {
+    tb.innerHTML = '<tr><td class="empty" colspan="4">还没有步骤 — 点"开始录制", 在键盘上打一遍即可</td></tr>';
+    return;
+  }
+  mmDraft.forEach((s, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="k"></td><td class="${s.down ? 'ev-down' : 'ev-up'}">${s.down ? '按下' : '释放'}</td>` +
+      `<td><input class="dl" type="number" min="0" max="65535" step="10" value="${s.delay}"> ms</td>` +
+      `<td><button class="del" data-i="${i}">✕</button></td>`;
+    tr.querySelector('.k').textContent = s.label;
+    tr.querySelector('input.dl').addEventListener('change', e => {
+      mmDraft[i].delay = Math.max(0, Math.min(65535, Math.round(Number(e.target.value) || 0)));
+      e.target.value = mmDraft[i].delay;
+    });
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => { mmDraft.splice(Number(b.dataset.i), 1); mmRenderSteps(); }));
+}
+function mmEdit(slot) {
+  mmStopRec();
+  mmSel = slot;
+  const m = slot == null ? null : macroLib.find(x => x.slot === slot);
+  mmDraft = m ? m.steps.map(s => ({ hid: s.hid, down: !!s.down, delay: s.delay, label: mmLabelOf(s.hid) })) : [];
+  $('mac-name').value = m ? m.name : '';
+  mmRenderList(); mmRenderSteps();
+}
+function mmStopRec() {
+  if (!mmRec) return;
+  const stopT = Date.now(), ev = mmRec.events;
+  mmRec = null;
+  $('mac-rec').classList.remove('recording');
+  $('mac-rec').textContent = '● 开始录制';
+  if (ev.length) {
+    mmDraft = ev.map((e, i) => ({
+      hid: e.hid, label: e.label, down: e.down,
+      delay: Math.min(65535, i + 1 < ev.length ? ev[i + 1].t - e.t : Math.max(0, stopT - e.t))
+    }));
+    setStatus(`录制完成: ${ev.length} 个事件`, 'ok');
+  }
+  mmRenderSteps();
+}
+$('btn-mac-lib').addEventListener('click', () => {
+  macMgr.hidden = false;
+  mmEdit(macroLib.length ? macroLib[0].slot : null);
+});
+$('mac-close').addEventListener('click', () => { mmStopRec(); macMgr.hidden = true; });
+macMgr.addEventListener('click', e => { if (e.target === macMgr) { mmStopRec(); macMgr.hidden = true; } });
+$('mac-slots').addEventListener('change', e => { if (e.target.value !== '') mmEdit(Number(e.target.value)); });
+$('mac-new').addEventListener('click', () => {
+  const used = new Set(macroLib.map(m => m.slot));
+  let slot = -1;
+  for (let i = 0; i < 100; i++) if (!used.has(i)) { slot = i; break; }
+  if (slot < 0) return setStatus('100 个宏槽已满', 'err');
+  mmEdit(slot);
+  $('mac-name').value = '';
+  $('mac-name').focus();
+});
+$('mac-rec').addEventListener('click', () => {
+  if (mmRec) return mmStopRec();
+  mmRec = { events: [] };
+  mmDraft = [];
+  $('mac-rec').classList.add('recording');
+  $('mac-rec').textContent = '■ 停止录制';
+  $('mac-rec').blur();
+  mmRenderSteps();
+});
+$('mac-save').addEventListener('click', async () => {
+  if (mmSel == null) return setStatus('请先"新建宏"或选择一个槽', 'err');
+  mmStopRec();
+  if (!mmDraft.length) return setStatus('宏还没有步骤, 请先录制', 'err');
+  const name = $('mac-name').value.trim() || `宏${mmSel}`;
+  const steps = mmDraft.map(s => ({ hid: s.hid, down: s.down ? 1 : 0, delay: Math.max(0, Math.min(65535, Math.round(s.delay || 0))) }));
+  macroLib = [...macroLib.filter(x => x.slot !== mmSel), { slot: mmSel, name, steps }].sort((a, b) => a.slot - b.slot);
+  mmDraft = steps.map(s => ({ hid: s.hid, down: !!s.down, delay: s.delay, label: mmLabelOf(s.hid) }));
+  try {
+    await window.api.saveMacros(macroLib);
+  } catch (e) { return setStatus('保存宏库失败: ' + e.message, 'err'); }
+  populateMacroPick(); mmRenderList(); mmRenderSteps(); markDirty();
+  setStatus(`宏「${name}」已保存到槽 ${mmSel} — 点底部"写入到键盘"才会生效`, 'ok');
+});
+$('mac-del').addEventListener('click', async () => {
+  if (mmSel == null) return;
+  const m = macroLib.find(x => x.slot === mmSel);
+  if (!m) return;
+  const bound = (config.overrides || []).filter(o => o.action === 'macro' && o.slot === mmSel);
+  const extra = bound.length
+    ? `<br><br>当前草稿里有 <b>${bound.length}</b> 个键 (${bound.map(o => keyNameByCell.get(o.cell) || '格' + o.cell).join(', ')}) 绑定了该宏, 删除后这些键将恢复默认功能。`
+    : '';
+  if (!await askDialog({ title: `删除槽 ${mmSel}「${m.name}」?`, bodyHTML: '删除宏库中该槽的数据, 点"写入到键盘"后在键盘上生效。' + extra, okText: '删除', danger: true })) return;
+  for (const o of bound) {
+    const i = config.overrides.indexOf(o);
+    if (i >= 0) config.overrides.splice(i, 1);
+  }
+  macroLib = macroLib.filter(x => x.slot !== mmSel);
+  await window.api.saveMacros(macroLib);
+  mmSel = macroLib.length ? macroLib[0].slot : null;
+  mmEdit(mmSel);
+  populateMacroPick(); refreshAllFaces(); markDirty();
+  setStatus(`已删除槽 ${mmSel}`, 'ok');
+});
+
 // ---- 设备状态 ----
 function renderDevice(s) {
   device = s;
@@ -487,8 +665,10 @@ window.api.onDeviceChanged(renderDevice);
 // ---- 启动 ----
 window.addEventListener('error', e => setStatus('界面脚本错误: ' + e.message + ' @' + (e.lineno || '?'), 'err'));
 (async () => {
-  applied = await window.api.getApplied();
+  macroLib = await window.api.listMacros();
+  await loadAppliedDoc();
   config = JSON.parse(JSON.stringify(applied));
+  populateMacroPick();
   renderKeyboard();
   await refreshProfiles();
   renderDevice(await window.api.getDeviceStatus());

@@ -14,5 +14,8 @@ contextBridge.exposeInMainWorld('api', {
   exportProfile: (cfg) => ipcRenderer.invoke('cfg:export', cfg),
   importProfile: () => ipcRenderer.invoke('cfg:import'),
 
-  applyConfig: (cfg) => ipcRenderer.invoke('keymap:apply', cfg)
+  applyConfig: (cfg) => ipcRenderer.invoke('keymap:apply', cfg),
+
+  listMacros: () => ipcRenderer.invoke('macro:list'),
+  saveMacros: (slots) => ipcRenderer.invoke('macro:save', slots)
 });
