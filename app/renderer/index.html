@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+  <title>GANSS GM108 改键工具</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">GANSS GM108 改键工具</div>
+    <div id="devinfo">
+      <span id="fw-ver"></span>
+      <span id="device-badge" class="badge off">检测设备中…</span>
+      <button id="btn-help">帮助 / 救援</button>
+    </div>
+  </header>
+
+  <main id="layout">
+    <aside id="profiles">
+      <h2>配置档</h2>
+      <ul id="profile-list"></ul>
+      <div class="btn-grid">
+        <button id="btn-new">新建</button>
+        <button id="btn-saveas">另存为</button>
+        <button id="btn-save">保存</button>
+        <button id="btn-del">删除</button>
+        <button id="btn-export">导出</button>
+        <button id="btn-import">导入</button>
+      </div>
+      <div class="hint" id="dirty-hint"></div>
+    </aside>
+
+    <section id="keyboard"><svg id="kb-svg"></svg></section>
+
+    <aside id="inspector">
+      <h2>属性面板</h2>
+      <div id="insp-empty" class="hint">点击键盘上的键进行选择。</div>
+      <div id="insp-body" hidden>
+        <div id="insp-title"></div>
+        <div id="insp-cell" class="hint"></div>
+        <label class="opt"><input type="radio" name="act" value="default" /> 默认功能</label>
+        <label class="opt"><input type="radio" name="act" value="disable" /> 禁用此键</label>
+        <label class="opt"><input type="radio" name="act" value="remap" /> 改键为</label>
+        <input id="remap-capture" readonly placeholder="点击此处, 按下目标键 (可带 Ctrl/Alt/Shift/Win)" />
+        <select id="remap-special" hidden>
+          <option value="">捕捉不到的键(如 PrtSc)在此选择…</option>
+          <option value="0|70|PrtSc">PrtSc</option>
+          <option value="1|70|Ctrl + PrtSc">Ctrl + PrtSc</option>
+          <option value="4|70|Alt + PrtSc">Alt + PrtSc</option>
+          <option value="8|70|Win + PrtSc">Win + PrtSc</option>
+          <option value="2|70|Shift + PrtSc">Shift + PrtSc</option>
+        </select>
+        <button id="btn-apply-key" class="wide">应用</button>
+      </div>
+    </aside>
+  </main>
+
+  <footer id="statusbar">
+    <span id="status-text">就绪</span>
+    <span id="diff-summary"></span>
+    <button id="btn-factory">恢复出厂设置</button>
+    <button id="apply-btn" disabled>写入到键盘</button>
+  </footer>
+
+  <div id="modal" hidden>
+    <div id="modal-box">
+      <h3 id="modal-title">确认下发</h3>
+      <div id="modal-body"></div>
+      <div id="modal-input-row" hidden><input id="modal-input" type="text" maxlength="32" placeholder="配置档名称" /></div>
+      <div class="row right">
+        <button id="modal-cancel">取消</button>
+        <button id="modal-ok" class="danger">确认写入键盘</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="help" hidden>
+    <div id="help-box">
+      <h3>帮助 / 救援</h3>
+      <div id="help-body">
+        <h4>基本用法</h4>
+        <ol>
+          <li>点击键盘上的键, 在右侧属性面板选: 默认 / 禁用 / 改键为其他键。</li>
+          <li>每次点"应用"只是改<b>软件里的草稿</b>, 不会碰键盘。</li>
+          <li>确认底部"待下发变更"无误后, 点"写入到键盘"才会真正写入。下发期间请勿拔线或按键。</li>
+          <li>改错了随时选中该键选"默认功能"再下发即可恢复; 或直接点底部"恢复出厂设置"一键清除全部改动并写回默认。</li>
+        </ol>
+        <h4>安全机制</h4>
+        <p>写入前软件会先探测设备心跳; 会话中任何一步设备应答异常都会<b>立即熔断中止</b>, 不再发送任何数据, 状态栏红字提示。看到熔断提示时: 拔插 USB 后重试即可, 键盘不受影响。</p>
+        <h4>故障自查</h4>
+        <ul>
+          <li><b>检测不到设备</b>: 先关闭老配置软件(GM108 Keyboard.exe), 它独占设备; 再拔插 USB。</li>
+          <li><b>徽章显示 BOOT (黄色)</b>: 键盘处于刷固件模式(设备 ID 7040), 见下方救援流程收尾。</li>
+          <li><b>下发中止</b>: 红字会写明在哪一步熔断, 拔插 USB 重试; 反复失败请不要再强行写入。</li>
+        </ul>
+        <h4>键盘救砖 (K3-BOOT 救援)</h4>
+        <p class="warn-title">仅在键盘完全无反应(所有键+灯全灭)时才需要。正常使用时软件熔断机制保证不会走到这一步。</p>
+        <ol>
+          <li>准备好官方刷写工具: <code>firmware\GM108_Keyboard_V1.16_0304_firmware.exe</code>(本工具项目目录内, 网上下载不到, 务必备份)。</li>
+          <li>断开键盘 USB, 打开键盘后壳。</li>
+          <li>在主板上找到 <b>K3-BOOT 触点</b>(空格键附近, 两个焊盘)。</li>
+          <li><b>用导体按住(短接)K3-BOOT 不放 → 插上 USB 上电 → 松开</b>。</li>
+          <li>此时键盘以刷固件模式枚举(设备管理器 VID_0C45&amp;PID_7040), 运行官方刷写工具, 按工具提示刷入固件。</li>
+          <li>刷完拔插 USB, 键盘恢复正常, 本工具重新识别。</li>
+        </ol>
+        <p class="danger-text">严禁: 在 BOOT 模式(7040)下用本工具或任何改键软件发送配置报文; 严禁用第三方烧录器直接刷 <code>.bin</code> 备份(官方刷写含传输加密, 第三方刷入会变砖)。救援只许用官方 exe + K3-BOOT。</p>
+      </div>
+      <div class="row right"><button id="help-close">关闭</button></div>
+    </div>
+  </div>
+
+  <script src="keyboard-layout.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

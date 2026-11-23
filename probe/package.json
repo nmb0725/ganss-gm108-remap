@@ -1,0 +1,9 @@
+{
+  "name": "gm108-probe",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "frida": "^17.27.4",
+    "node-hid": "^3.4.0"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "name": "ganss-remap",
+  "productName": "GANSS GM108 改键工具",
+  "version": "0.1.0",
+  "description": "GM108 可视化改键工具: 默认/禁用/改键 + 配置存档 + 安全下发",
+  "main": "main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test\\protocol.test.js",
+    "dist": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.ganss.gm108-remap",
+    "productName": "GANSS GM108 Remap",
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main/**/*",
+      "renderer/**/*",
+      "preload.js",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "GM108-Remap-${version}-portable.exe"
+    }
+  },
+  "dependencies": {
+    "node-hid": "^3.3.0"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^26.18.0"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "node-hid@3.4.0": true
+  }
+}

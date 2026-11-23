@@ -1,0 +1,226 @@
+{
+ "schema": 1,
+ "name": "校准第一轮-禁未验证键",
+ "overrides": [
+  {
+   "cell": 3,
+   "action": "disable"
+  },
+  {
+   "cell": 4,
+   "action": "disable"
+  },
+  {
+   "cell": 5,
+   "action": "disable"
+  },
+  {
+   "cell": 6,
+   "action": "disable"
+  },
+  {
+   "cell": 7,
+   "action": "disable"
+  },
+  {
+   "cell": 8,
+   "action": "disable"
+  },
+  {
+   "cell": 9,
+   "action": "disable"
+  },
+  {
+   "cell": 10,
+   "action": "disable"
+  },
+  {
+   "cell": 11,
+   "action": "disable"
+  },
+  {
+   "cell": 12,
+   "action": "disable"
+  },
+  {
+   "cell": 14,
+   "action": "disable"
+  },
+  {
+   "cell": 15,
+   "action": "disable"
+  },
+  {
+   "cell": 32,
+   "action": "disable"
+  },
+  {
+   "cell": 33,
+   "action": "disable"
+  },
+  {
+   "cell": 34,
+   "action": "disable"
+  },
+  {
+   "cell": 35,
+   "action": "disable"
+  },
+  {
+   "cell": 36,
+   "action": "disable"
+  },
+  {
+   "cell": 50,
+   "action": "disable"
+  },
+  {
+   "cell": 51,
+   "action": "disable"
+  },
+  {
+   "cell": 52,
+   "action": "disable"
+  },
+  {
+   "cell": 65,
+   "action": "disable"
+  },
+  {
+   "cell": 66,
+   "action": "disable"
+  },
+  {
+   "cell": 67,
+   "action": "disable"
+  },
+  {
+   "cell": 68,
+   "action": "disable"
+  },
+  {
+   "cell": 69,
+   "action": "disable"
+  },
+  {
+   "cell": 70,
+   "action": "disable"
+  },
+  {
+   "cell": 72,
+   "action": "disable"
+  },
+  {
+   "cell": 73,
+   "action": "disable"
+  },
+  {
+   "cell": 76,
+   "action": "disable"
+  },
+  {
+   "cell": 77,
+   "action": "disable"
+  },
+  {
+   "cell": 78,
+   "action": "disable"
+  },
+  {
+   "cell": 79,
+   "action": "disable"
+  },
+  {
+   "cell": 80,
+   "action": "disable"
+  },
+  {
+   "cell": 81,
+   "action": "disable"
+  },
+  {
+   "cell": 82,
+   "action": "disable"
+  },
+  {
+   "cell": 83,
+   "action": "disable"
+  },
+  {
+   "cell": 84,
+   "action": "disable"
+  },
+  {
+   "cell": 86,
+   "action": "disable"
+  },
+  {
+   "cell": 87,
+   "action": "disable"
+  },
+  {
+   "cell": 88,
+   "action": "disable"
+  },
+  {
+   "cell": 93,
+   "action": "disable"
+  },
+  {
+   "cell": 95,
+   "action": "disable"
+  },
+  {
+   "cell": 96,
+   "action": "disable"
+  },
+  {
+   "cell": 97,
+   "action": "disable"
+  },
+  {
+   "cell": 98,
+   "action": "disable"
+  },
+  {
+   "cell": 99,
+   "action": "disable"
+  },
+  {
+   "cell": 100,
+   "action": "disable"
+  },
+  {
+   "cell": 101,
+   "action": "disable"
+  },
+  {
+   "cell": 113,
+   "action": "disable"
+  },
+  {
+   "cell": 114,
+   "action": "disable"
+  },
+  {
+   "cell": 116,
+   "action": "disable"
+  },
+  {
+   "cell": 117,
+   "action": "disable"
+  },
+  {
+   "cell": 118,
+   "action": "disable"
+  },
+  {
+   "cell": 120,
+   "action": "disable"
+  },
+  {
+   "cell": 121,
+   "action": "disable"
+  }
+ ]
+}

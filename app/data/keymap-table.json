@@ -1,0 +1,586 @@
+{
+  "_comment": "GM108 键位坐标表. KeyIndex = 报文键位段(04 11)中的 4 字节格序号; wire 偏移 = KeyIndex*4, 块 = (KeyIndex*4)>>6. verified=双锚点交叉实测验证; inferred=单一来源或行规律推断(新软件首测时钉死); unknown=待定",
+  "_status_legend": {
+    "verified": true,
+    "inferred": true,
+    "unknown": true
+  },
+  "table": {
+    "0": {
+      "name": "?未知(库里存在但未锚定)",
+      "status": "unknown"
+    },
+    "1": {
+      "name": "Esc",
+      "status": "verified"
+    },
+    "2": {
+      "name": "F1",
+      "status": "verified"
+    },
+    "3": {
+      "name": "F2",
+      "status": "verified"
+    },
+    "4": {
+      "name": "F3",
+      "status": "verified"
+    },
+    "5": {
+      "name": "F4",
+      "status": "verified"
+    },
+    "6": {
+      "name": "F5",
+      "status": "verified"
+    },
+    "7": {
+      "name": "F6",
+      "status": "verified"
+    },
+    "8": {
+      "name": "F7",
+      "status": "verified"
+    },
+    "9": {
+      "name": "F8",
+      "status": "verified"
+    },
+    "10": {
+      "name": "F9",
+      "status": "verified"
+    },
+    "11": {
+      "name": "F10",
+      "status": "verified"
+    },
+    "12": {
+      "name": "F11",
+      "status": "verified"
+    },
+    "13": {
+      "name": "F12",
+      "status": "verified"
+    },
+    "14": {
+      "name": "音量+",
+      "status": "verified"
+    },
+    "15": {
+      "name": "音量-",
+      "status": "verified"
+    },
+    "16": {
+      "name": "静音",
+      "status": "verified"
+    },
+    "17": {
+      "name": "?待确认",
+      "status": "unknown"
+    },
+    "18": {
+      "name": "?待确认(PrtSc/ScrLk区)",
+      "status": "unknown"
+    },
+    "19": {
+      "name": "` (反引号)",
+      "status": "verified"
+    },
+    "20": {
+      "name": "1",
+      "status": "verified"
+    },
+    "21": {
+      "name": "2",
+      "status": "verified"
+    },
+    "22": {
+      "name": "3",
+      "status": "verified"
+    },
+    "23": {
+      "name": "4",
+      "status": "verified"
+    },
+    "24": {
+      "name": "5",
+      "status": "verified"
+    },
+    "25": {
+      "name": "6",
+      "status": "verified"
+    },
+    "26": {
+      "name": "7",
+      "status": "verified"
+    },
+    "27": {
+      "name": "8",
+      "status": "verified"
+    },
+    "28": {
+      "name": "9",
+      "status": "verified"
+    },
+    "29": {
+      "name": "0",
+      "status": "verified"
+    },
+    "30": {
+      "name": "-",
+      "status": "verified"
+    },
+    "31": {
+      "name": "=",
+      "status": "verified"
+    },
+    "32": {
+      "name": "NumLock",
+      "status": "verified"
+    },
+    "33": {
+      "name": "Num/(推断: 32-34行带尾连号NumLock/Num/Num*, Num*=34已证实)",
+      "status": "inferred"
+    },
+    "34": {
+      "name": "Num*",
+      "status": "verified"
+    },
+    "35": {
+      "name": "?不是Num-(Num-=122已证实)",
+      "status": "unknown"
+    },
+    "36": {
+      "name": "?不是Tab(Tab存活)",
+      "status": "unknown"
+    },
+    "37": {
+      "name": "Tab",
+      "status": "verified"
+    },
+    "38": {
+      "name": "Q",
+      "status": "verified"
+    },
+    "39": {
+      "name": "W",
+      "status": "verified"
+    },
+    "40": {
+      "name": "E",
+      "status": "verified"
+    },
+    "41": {
+      "name": "R",
+      "status": "verified"
+    },
+    "42": {
+      "name": "T",
+      "status": "verified"
+    },
+    "43": {
+      "name": "Y",
+      "status": "verified"
+    },
+    "44": {
+      "name": "U",
+      "status": "verified"
+    },
+    "45": {
+      "name": "I",
+      "status": "verified"
+    },
+    "46": {
+      "name": "O",
+      "status": "verified"
+    },
+    "47": {
+      "name": "P",
+      "status": "verified"
+    },
+    "48": {
+      "name": "[",
+      "status": "verified"
+    },
+    "49": {
+      "name": "]",
+      "status": "verified"
+    },
+    "50": {
+      "name": "Num7",
+      "status": "verified"
+    },
+    "51": {
+      "name": "Num8(推断)",
+      "status": "inferred"
+    },
+    "52": {
+      "name": "Num9(推断)",
+      "status": "inferred"
+    },
+    "53": {
+      "name": "CapsLock候补(实测55更像,待确认)",
+      "status": "unknown"
+    },
+    "54": {
+      "name": "?待确认",
+      "status": "unknown"
+    },
+    "55": {
+      "name": "CapsLock",
+      "status": "verified"
+    },
+    "56": {
+      "name": "A",
+      "status": "verified"
+    },
+    "57": {
+      "name": "S",
+      "status": "verified"
+    },
+    "58": {
+      "name": "D",
+      "status": "verified"
+    },
+    "59": {
+      "name": "F",
+      "status": "verified"
+    },
+    "60": {
+      "name": "G",
+      "status": "verified"
+    },
+    "61": {
+      "name": "H",
+      "status": "verified"
+    },
+    "62": {
+      "name": "J",
+      "status": "verified"
+    },
+    "63": {
+      "name": "K",
+      "status": "verified"
+    },
+    "64": {
+      "name": "L",
+      "status": "verified"
+    },
+    "65": {
+      "name": ";",
+      "status": "verified"
+    },
+    "66": {
+      "name": "'",
+      "status": "verified"
+    },
+    "67": {
+      "name": "?不是主Enter(主Enter存活; 真身=85已证实)",
+      "status": "unknown"
+    },
+    "68": {
+      "name": "Num4(行带规律推断)",
+      "status": "inferred"
+    },
+    "69": {
+      "name": "Num5(推断)",
+      "status": "inferred"
+    },
+    "70": {
+      "name": "Num6(推断)",
+      "status": "inferred"
+    },
+    "71": {
+      "name": "?待确认(Shift上侧)",
+      "status": "unknown"
+    },
+    "72": {
+      "name": "LShift",
+      "status": "verified"
+    },
+    "73": {
+      "name": "\\",
+      "status": "verified"
+    },
+    "74": {
+      "name": "Z",
+      "status": "verified"
+    },
+    "75": {
+      "name": "X",
+      "status": "verified"
+    },
+    "76": {
+      "name": "C",
+      "status": "verified"
+    },
+    "77": {
+      "name": "V",
+      "status": "verified"
+    },
+    "78": {
+      "name": "B",
+      "status": "verified"
+    },
+    "79": {
+      "name": "N",
+      "status": "verified"
+    },
+    "80": {
+      "name": "M",
+      "status": "verified"
+    },
+    "81": {
+      "name": ",",
+      "status": "verified"
+    },
+    "82": {
+      "name": ".",
+      "status": "verified"
+    },
+    "83": {
+      "name": "/",
+      "status": "verified"
+    },
+    "84": {
+      "name": "RShift",
+      "status": "verified"
+    },
+    "85": {
+      "name": "主Enter",
+      "status": "verified"
+    },
+    "86": {
+      "name": "Num1(行带规律推断)",
+      "status": "inferred"
+    },
+    "87": {
+      "name": "Num2(推断)",
+      "status": "inferred"
+    },
+    "88": {
+      "name": "Num3(推断)",
+      "status": "inferred"
+    },
+    "89": {
+      "name": "?待确认",
+      "status": "unknown"
+    },
+    "90": {
+      "name": "?待确认",
+      "status": "unknown"
+    },
+    "91": {
+      "name": "左Ctrl",
+      "status": "verified"
+    },
+    "92": {
+      "name": "左Win",
+      "status": "verified"
+    },
+    "93": {
+      "name": "左Alt",
+      "status": "verified"
+    },
+    "94": {
+      "name": "空格",
+      "status": "verified"
+    },
+    "95": {
+      "name": "右Alt",
+      "status": "verified"
+    },
+    "96": {
+      "name": "Fn",
+      "status": "verified"
+    },
+    "97": {
+      "name": "菜单键",
+      "status": "verified"
+    },
+    "98": {
+      "name": "右Ctrl",
+      "status": "verified"
+    },
+    "99": {
+      "name": "←",
+      "status": "verified"
+    },
+    "100": {
+      "name": "↓",
+      "status": "verified"
+    },
+    "101": {
+      "name": "↑",
+      "status": "verified"
+    },
+    "102": {
+      "name": "→",
+      "status": "verified"
+    },
+    "103": {
+      "name": "Pause",
+      "status": "verified"
+    },
+    "104": {
+      "name": "Num0",
+      "status": "verified"
+    },
+    "105": {
+      "name": "Num.",
+      "status": "verified"
+    },
+    "106": {
+      "name": "小键盘Enter",
+      "status": "verified"
+    },
+    "107": {
+      "name": "?待确认",
+      "status": "unknown"
+    },
+    "109": {
+      "name": "自定义(排除法: 媒体三键14/15/16连号后唯一剩余)",
+      "status": "verified"
+    },
+    "112": {
+      "name": "PrtSc",
+      "status": "verified"
+    },
+    "113": {
+      "name": "ScrLk",
+      "status": "verified"
+    },
+    "114": {
+      "name": "?待确认(Num*=34已证实, 114=Num*作废; 物理键未知)",
+      "status": "unknown"
+    },
+    "115": {
+      "name": "Backspace",
+      "status": "verified"
+    },
+    "116": {
+      "name": "Ins",
+      "status": "verified"
+    },
+    "117": {
+      "name": "Home",
+      "status": "verified"
+    },
+    "118": {
+      "name": "PageUp",
+      "status": "verified"
+    },
+    "119": {
+      "name": "Delete",
+      "status": "verified"
+    },
+    "120": {
+      "name": "End",
+      "status": "verified"
+    },
+    "121": {
+      "name": "PageDown",
+      "status": "verified"
+    },
+    "122": {
+      "name": "Num-",
+      "status": "verified"
+    },
+    "123": {
+      "name": "Num+",
+      "status": "verified"
+    },
+    "124": {
+      "name": "?FN层/媒体区(gkdb存在记录线)",
+      "status": "unknown"
+    },
+    "125": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "126": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "127": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "128": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "129": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "130": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "131": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "132": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "133": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "134": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "135": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "136": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "137": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "138": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "139": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "140": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "141": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "142": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    },
+    "143": {
+      "name": "?FN层/媒体区",
+      "status": "unknown"
+    }
+  },
+  "_notes": [
+    "Backspace=115 已终裁(与 Num-=122 无冲突); 107 与 Backspace 无关, 属无实体/待确认格",
+    "F行一轮实测校准: F2-F11=3..12, F12=13 (本表旧版曾错位为 3=F3..13=F12, 2026-11-23 已纠正)",
+    "6键核对轮(单键受控, 已全部完成): 菜单键=97, V+=14, V-=15, 静音=16, 自定义=109(排除法), PrtSc=112, ScrLk=113, NumLock=32, Num7=50均证实; Fn老软件无禁用项未落库, 本期UI只作显示; 一轮批量误报共7处(PrtSc/NumLock/Num//Num7/8/9/4-6-1-3区), 全在右上+小键盘列",
+    "一轮批量禁键结果可信度打折: 已3例误报且全在右上区(14:PrtSc→实为音量+, 112:NumLock→实为PrtSc, 113:Num/→实为ScrLk), 凡冲突以单键受控为准; NumLock/Num 真身待单键核对; 一轮其余格暂无反证",
+    "所有 verified 键的 wire 坐标: cell=KeyIndex, byte=cell*4, block=byte>>6, off=byte&63",
+    "gkdb 确认: 每 Profile 144 行, KeyIndex=1..143 均存在; 0 号格疑为填充",
+    "末轮老软件禁用批测的结果清单已随'收回'丢失未存档; 剩余 unknown 核对采用用户采纳的零风险法: 老软件禁用(自动下发)→读gkdb Profile1新8?记录; 仅剩 音量+/音量-/静音/自定义/Fn/菜单键 6 键待核",
+    "小键盘Enter=106(verified); 用户报告'禁小键盘Enter没生效'提示老软件 UI 该键可能映射异常, 与本表无关, 新工具不受影响",
+    "用户确认的物理布局: 无旋钮; 小键盘上方4键=音量+/音量-/静音/自定义(格号未定); 底行右部无右Win, 该位是Fn功能键(格号未定)",
+    "校准一轮(2026-11-23)钉死43格; 左Ctrl/主Enter/Tab/Num-+0. 真身在剩余 unknown 池中, 见 calibration-round2"
+  ]
+}

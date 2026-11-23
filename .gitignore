@@ -1,0 +1,22 @@
+# 依赖与构建产物 / deps & build output
+node_modules/
+app/node_modules/
+app/dist/
+probe/node_modules/
+
+# 固件与官方工具(第三方版权文件, 请勿上传) / vendor firmware & OEM tools — do NOT publish
+firmware/
+
+# 抓包日志与逆向中间产物 / capture logs & RE artifacts
+*.log
+*.tar.gz
+probe/*.txt
+.screenshots/
+.trae/
+.trae-html-share-packages/
+
+# 系统文件 / OS files
+Thumbs.db
+Desktop.ini
+
+app/app-git-old-backup/
