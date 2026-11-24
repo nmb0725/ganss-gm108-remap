@@ -5,7 +5,7 @@ const { parentPort } = require('worker_threads');
 const { HidTransport } = require('./hid-transport');
 const { runKeymapSession, runMacroWriteSession, readFirmwareVersion } = require('./protocol');
 
-function fail(e) { return { ok: false, error: e.message || String(e) }; }
+function fail(e) { return { ok: false, error: e.message || String(e), step: e.step || null }; }
 
 parentPort.on('message', async (msg) => {
   const t = new HidTransport(msg.path);
@@ -15,6 +15,8 @@ parentPort.on('message', async (msg) => {
       parentPort.postMessage({ id: msg.id, ok: true, result: readFirmwareVersion(t) });
     } else if (msg.op === 'apply') {
       const r = await runKeymapSession(t, Buffer.from(msg.segHex, 'hex'));
+      // 进度: 键位段会话已通过全部校验 (不代表已落盘), 供主进程处理"键位成功/宏失败"的部分成功
+      parentPort.postMessage({ id: msg.id, progress: 'keymap-ok' });
       // 宏库有变更时追加宏段会话 (金样时序: f0 → 17 → 15), 熔断规则一致
       if (msg.macro15Hex) await runMacroWriteSession(t, Buffer.from(msg.macro15Hex, 'hex'), Buffer.from(msg.macro17Hex, 'hex'));
       parentPort.postMessage({ id: msg.id, ok: true, result: r });

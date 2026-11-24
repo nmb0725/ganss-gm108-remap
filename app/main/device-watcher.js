@@ -1,15 +1,23 @@
 // 设备监听: 轮询 HID 枚举, 识别 GM108 正常态(0c45:8006 mi_00) / 救援态(0c45:7040)
-// 只读枚举, 不打开设备。打开设备与 GET 校验在 M2 hid-transport 实现。
+// 只读枚举, 不打开设备。
+//
+// 2026-11-24 (14:15) 卡顿修复:
+//   之前一版在主进程上每 1.5 秒同步调用 HID.devices()。Windows 上一次枚举要遍历并打开每个 HID 设备读字符串,
+//   常见耗时几十到几百 ms, 碰到响应慢的设备 (蓝牙/被别的程序独占的设备) 可达数秒; Electron 主进程 = 窗口 UI 线程,
+//   被同步枚举卡住时整个窗口失去响应, 表现为"间歇性卡死, 过一会恢复"。
+//   现在: 枚举走 HID.devicesAsync() (libuv 线程池, 不阻塞主线程) + 单航班 (同一时刻最多一次枚举, 其余调用复用同一个结果),
+//   所以不会出现两次 hid_enumerate 并发。
+//   (更正: 12:31 那次改回同步, 理由写的是"异步并发枚举导致启动闪退"; 后来确认闪退是 Chromium 沙箱问题, 与枚举无关。)
+//   可选 log 回调: 枚举超过 SLOW_MS 时调用 (诊断用; 15:16 卡顿已确认修复, 主进程不再传入)。
 const HID = require('node-hid');
 
 const TARGETS = {
   normal: { vendorId: 0x0c45, productId: 0x8006 },
   boot:   { vendorId: 0x0c45, productId: 0x7040 }
 };
+const SLOW_MS = 300;
 
-function findGm108() {
-  let devices = [];
-  try { devices = HID.devices(); } catch { return { present: false, error: 'HID 枚举失败' }; }
+function classify(devices) {
   const boot = devices.find(d => d.vendorId === TARGETS.boot.vendorId && d.productId === TARGETS.boot.productId);
   if (boot) return { present: true, mode: 'boot', path: boot.path, product: boot.product || 'GM108 (BOOT)' };
   // kbd 结尾的路径是实测可用接口; 若同时出现多条, 优先 kbd
@@ -19,18 +27,52 @@ function findGm108() {
   return { present: true, mode: 'normal', path: dev.path, product: dev.product || 'GANSS GM108', serial: dev.serialNumber || null };
 }
 
-// 间隔轮询, 状态变化才回调
-function startWatcher(onChange, intervalMs = 1500) {
-  let last = null;
-  const timer = setInterval(() => {
-    const cur = findGm108();
-    const key = JSON.stringify(cur);
-    if (key !== last) { last = key; onChange(cur); }
-  }, intervalMs);
-  const initial = findGm108();
-  last = JSON.stringify(initial);
-  onChange(initial);
-  return () => clearInterval(timer);
+// 设备监视器 (可注入 hid / log / 计时器, 便于单测)
+//   refresh(): 单航班枚举, 返回最新状态; 正在枚举时直接复用同一个 Promise
+//   current(): 最近一次结果 (不枚举, 立即返回)
+//   start(onChange) / stop() / pause() / resume()
+function createDeviceMonitor({ hid = HID, log = () => {}, intervalMs = 1500, now = () => Date.now() } = {}) {
+  let inflight = null, last = { present: false, pending: true }, lastKey = null;
+  let timer = null, stopped = true, paused = false, onChange = null;
+
+  const enumerate = () => {
+    // 优先异步 (不阻塞主线程); 旧版 node-hid 没有 devicesAsync 时退回同步
+    if (typeof hid.devicesAsync === 'function') return hid.devicesAsync();
+    return Promise.resolve().then(() => hid.devices());
+  };
+
+  function refresh() {
+    if (inflight) return inflight;
+    const t0 = now();
+    inflight = enumerate()
+      .then(list => classify(list || []))
+      .catch(() => ({ present: false, error: 'HID 枚举失败' }))
+      .then(st => {
+        const ms = now() - t0;
+        if (ms > SLOW_MS) log(`HID 枚举较慢: ${ms} ms`);
+        last = st;
+        const key = JSON.stringify(st);
+        if (key !== lastKey) { lastKey = key; if (onChange) onChange(st); }
+        return st;
+      })
+      .finally(() => { inflight = null; });
+    return inflight;
+  }
+
+  const tick = async () => {
+    if (stopped) return;
+    if (!paused) await refresh();
+    if (!stopped) timer = setTimeout(tick, intervalMs);
+  };
+
+  return {
+    refresh,
+    current: () => last,
+    start(cb) { onChange = cb; stopped = false; timer = setTimeout(tick, 0); return this; },
+    stop() { stopped = true; clearTimeout(timer); },
+    pause() { paused = true; },
+    resume() { paused = false; }
+  };
 }
 
-module.exports = { findGm108, startWatcher };
+module.exports = { classify, createDeviceMonitor, SLOW_MS };

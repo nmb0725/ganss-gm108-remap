@@ -140,7 +140,8 @@
     },
     "33": {
       "name": "Num/(推断: 32-34行带尾连号NumLock/Num/Num*, Num*=34已证实)",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "34": {
       "name": "Num*",
@@ -212,11 +213,13 @@
     },
     "51": {
       "name": "Num8(推断)",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "52": {
       "name": "Num9(推断)",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "53": {
       "name": "CapsLock候补(实测55更像,待确认)",
@@ -280,15 +283,18 @@
     },
     "68": {
       "name": "Num4(行带规律推断)",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "69": {
       "name": "Num5(推断)",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "70": {
       "name": "Num6(推断)",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "71": {
       "name": "?待确认(Shift上侧)",
@@ -352,15 +358,18 @@
     },
     "86": {
       "name": "Num1(行带规律推断)",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "87": {
       "name": "Num2(推断)",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "88": {
       "name": "Num3(推断)",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "89": {
       "name": "?待确认",
@@ -420,7 +429,8 @@
     },
     "103": {
       "name": "Backspace",
-      "status": "inferred"
+      "status": "verified",
+      "note": "2026-11-24 用户实机确认"
     },
     "104": {
       "name": "Num0",

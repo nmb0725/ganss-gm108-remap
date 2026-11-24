@@ -1,9 +1,13 @@
 // GM108 物理布局 (单位: 键宽=1) + 每键对应的 KeyIndex 格号
 // conf: v=实测锚定 i=行规律推断 ?=未校准(禁用可能命中别的键, UI 必须警示)
+// 2026-11-24: 原 10 个 i (Backspace + 小键盘 / 1-6 8 9) 经用户实机确认, 全部改为 v
+// icon: 键帽画图标而不写文字 (vol-up / vol-down / mute / custom), 见 app.js KEY_ICONS
 // cell=null 的键本期不可编辑(格号完全没头绪, 等校准)
 // 布局: 主区 0-15, 导航簇 x16-19, 小键盘 x20-24 (块间距 1)
 // hid: 改键目标的 USB HID usage(page 07) 编码。wire 统一规则(probe/cap_modifier*.log 解码): 普通键 02 00 hid 00; 修饰键 02 (1<<(hid-0xE0)) 00 00
-const HK = c => {
+// 修复审查 #22: 调用处传的是大写字母 ('QWERTYUIOP[]'[i] 等), 旧实现只认小写 => 26 个字母键 hid 全为 undefined
+const HK = ch => {
+  const c = String(ch).toLowerCase();
   if (/^[a-z]$/.test(c)) return 4 + c.charCodeAt(0) - 97;
   if (/^[1-9]$/.test(c)) return 29 + Number(c);
   return { '0': 39, '`': 53, '-': 45, '=': 46, '[': 47, ']': 48, '\\': 49, ';': 51, "'": 52, ',': 54, '.': 55, '/': 56 }[c];
@@ -18,21 +22,21 @@ window.KEYBOARD = [
   { l: 'ScrLk', cell: 113, conf: 'v', hid: 71, x: 17, y: 0, tip: 'ScrLk (老软件核对证实, 格号113)' },
   { l: 'Pause', cell: 115, conf: 'v', hid: 72, x: 18, y: 0 },
   // 小键盘上方 4 键 (GM108 无旋钮, 此处为媒体/自定义键)
-  { l: 'V+', cell: 14, conf: 'v', x: 20, y: 0, tip: '音量增加 (老软件核对证实, 格号14)' },
-  { l: 'V-', cell: 15, conf: 'v', x: 21, y: 0, tip: '音量减小 (老软件核对证实, 格号15)' },
-  { l: '静', cell: 16, conf: 'v', x: 22, y: 0, tip: '静音 (老软件核对证实, 格号16)' },
-  { l: '自定', cell: 109, conf: 'v', x: 23, y: 0, tip: '自定义键 (格号109, 排除法证实)' },
+  { l: 'V+', icon: 'vol-up', cell: 14, conf: 'v', x: 20, y: 0, tip: '音量增加 (老软件核对证实, 格号14)' },
+  { l: 'V-', icon: 'vol-down', cell: 15, conf: 'v', x: 21, y: 0, tip: '音量减小 (老软件核对证实, 格号15)' },
+  { l: '静', icon: 'mute', cell: 16, conf: 'v', x: 22, y: 0, tip: '静音 (老软件核对证实, 格号16)' },
+  { l: '自定', icon: 'custom', cell: 109, conf: 'v', x: 23, y: 0, tip: '自定义键 (格号109, 排除法证实)' },
   // 第1行 数字行
   { l: '`', cell: 19, conf: 'v', hid: HK('`'), x: 0, y: 1 },
   ...[20, 21, 22, 23, 24, 25, 26, 27, 28, 29].map((c, i) => ({ l: String((i + 1) % 10), cell: c, conf: 'v', hid: HK(String((i + 1) % 10)), x: 1 + i, y: 1 })),
   { l: '-', cell: 30, conf: 'v', hid: HK('-'), x: 11, y: 1 },
   { l: '=', cell: 31, conf: 'v', hid: HK('='), x: 12, y: 1 },
-  { l: '⌫', cell: 103, conf: 'i', hid: 42, x: 13, y: 1, w: 2, tip: 'Backspace' },
+  { l: '⌫', cell: 103, conf: 'v', hid: 42, x: 13, y: 1, w: 2, tip: 'Backspace (2026-11-24 实机确认)' },
   { l: 'Ins', cell: 116, conf: 'v', hid: 73, x: 16, y: 1 },
   { l: 'Home', cell: 117, conf: 'v', hid: 74, x: 17, y: 1 },
   { l: 'PgUp', cell: 118, conf: 'v', hid: 75, x: 18, y: 1 },
   { l: 'Num', cell: 32, conf: 'v', hid: 83, x: 20, y: 1, tip: 'NumLock (老软件核对证实, 格号32)' },
-  { l: '/', cell: 33, conf: 'i', hid: 84, x: 21, y: 1, tip: 'Num / (推断: 32/33/34=NumLock/Num//Num* 行带尾连号)' },
+  { l: '/', cell: 33, conf: 'v', hid: 84, x: 21, y: 1, tip: 'Num / (2026-11-24 实机确认)' },
   { l: '*', cell: 34, conf: 'v', hid: 85, x: 22, y: 1, tip: 'Num * (老软件核对证实, 格号34; 114作废)' },
   { l: '-', cell: 122, conf: 'v', hid: 86, x: 23, y: 1, tip: 'Num - (老软件核对证实; 不是35)' },
   // 第2行
@@ -43,24 +47,24 @@ window.KEYBOARD = [
   { l: 'End', cell: 120, conf: 'v', hid: 77, x: 17, y: 2 },
   { l: 'PgDn', cell: 121, conf: 'v', hid: 78, x: 18, y: 2 },
   { l: '7', cell: 50, conf: 'v', hid: 95, x: 20, y: 2, tip: 'Num 7 (启用抽查证实, 格号50; 一轮32-34结论作废)' },
-  { l: '8', cell: 51, conf: 'i', hid: 96, x: 21, y: 2, tip: 'Num 8 (推断)' },
-  { l: '9', cell: 52, conf: 'i', hid: 97, x: 22, y: 2, tip: 'Num 9 (推断)' },
+  { l: '8', cell: 51, conf: 'v', hid: 96, x: 21, y: 2, tip: 'Num 8 (2026-11-24 实机确认)' },
+  { l: '9', cell: 52, conf: 'v', hid: 97, x: 22, y: 2, tip: 'Num 9 (2026-11-24 实机确认)' },
   { l: '+', cell: 123, conf: 'v', hid: 87, x: 23, y: 2, h: 2, tip: 'Num + (老软件核对证实; 不是88)' },
   // 第3行
   { l: 'Caps', cell: 55, conf: 'v', hid: 57, x: 0, y: 3, w: 1.75 },
   ...[56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66].map((c, i) => ({ l: 'ASDFGHJKL;\''[i], cell: c, conf: 'v', hid: HK('ASDFGHJKL;\''[i]), x: 1.75 + i, y: 3 })),
   { l: '⏎', cell: 85, conf: 'v', hid: 40, x: 12.75, y: 3, w: 2.25, tip: '主 Enter (老软件核对证实)' },
-  { l: '4', cell: 68, conf: 'i', hid: 92, x: 20, y: 3, tip: 'Num 4 (推断)' },
-  { l: '5', cell: 69, conf: 'i', hid: 93, x: 21, y: 3, tip: 'Num 5 (推断)' },
-  { l: '6', cell: 70, conf: 'i', hid: 94, x: 22, y: 3, tip: 'Num 6 (推断)' },
+  { l: '4', cell: 68, conf: 'v', hid: 92, x: 20, y: 3, tip: 'Num 4 (2026-11-24 实机确认)' },
+  { l: '5', cell: 69, conf: 'v', hid: 93, x: 21, y: 3, tip: 'Num 5 (2026-11-24 实机确认)' },
+  { l: '6', cell: 70, conf: 'v', hid: 94, x: 22, y: 3, tip: 'Num 6 (2026-11-24 实机确认)' },
   // 第4行
   { l: 'Shift', cell: 72, conf: 'v', hid: 225, x: 0, y: 4, w: 2.25, tip: '左 Shift (校准一轮实测证实)' },
   ...[74, 75, 76, 77, 78, 79, 80, 81, 82, 83].map((c, i) => ({ l: 'ZXCVBNM,./'[i], cell: c, conf: 'v', hid: HK('ZXCVBNM,./'[i]), x: 2.25 + i, y: 4 })),
   { l: 'Shift', cell: 84, conf: 'v', hid: 229, x: 12.25, y: 4, w: 2.75, tip: '右 Shift (校准一轮实测证实)' },
   { l: '↑', cell: 101, conf: 'v', hid: 82, x: 17, y: 4, tip: '上箭头 (老软件核对证实)' },
-  { l: '1', cell: 86, conf: 'i', hid: 89, x: 20, y: 4, tip: 'Num 1 (推断; 32已被证实是NumLock, 一轮68-70=123结论作废)' },
-  { l: '2', cell: 87, conf: 'i', hid: 90, x: 21, y: 4, tip: 'Num 2 (推断)' },
-  { l: '3', cell: 88, conf: 'i', hid: 91, x: 22, y: 4, tip: 'Num 3 (推断)' },
+  { l: '1', cell: 86, conf: 'v', hid: 89, x: 20, y: 4, tip: 'Num 1 (2026-11-24 实机确认)' },
+  { l: '2', cell: 87, conf: 'v', hid: 90, x: 21, y: 4, tip: 'Num 2 (2026-11-24 实机确认)' },
+  { l: '3', cell: 88, conf: 'v', hid: 91, x: 22, y: 4, tip: 'Num 3 (2026-11-24 实机确认)' },
   // 第5行
   { l: 'Ctrl', cell: 91, conf: 'v', hid: 224, x: 0, y: 5, w: 1.25, tip: '左 Ctrl (老软件核对证实)' },
   { l: 'Win', cell: 92, conf: 'v', hid: 227, x: 1.25, y: 5, w: 1.25, tip: '左 Win' },

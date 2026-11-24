@@ -6,9 +6,9 @@
   "main": "main/main.js",
   "private": true,
   "scripts": {
-    "start": "electron .",
-    "test": "node --test test\\protocol.test.js",
-    "dist": "electron-builder --win portable"
+    "start": "electron . --no-sandbox",
+    "test": "node --test test/protocol.test.js test/review-issues.test.js test/main-modules.test.js",
+    "dist": "electron-builder --win portable --publish never"
   },
   "build": {
     "appId": "com.ganss.gm108-remap",
@@ -38,7 +38,7 @@
     }
   },
   "dependencies": {
-    "node-hid": "^3.3.0"
+    "node-hid": "3.4.0"
   },
   "devDependencies": {
     "electron": "^33.4.11",

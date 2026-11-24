@@ -1,3 +1,4 @@
+// 2026-11-24 修复: 旧正则要求每字节后跟空格, 丢掉了每个报文的最后 1 字节(每块只剩 63B), 导致 bindPos 公式与鼠标宏模型错位
 // 提取指定日志里某个 04 段会话的 64 字节数据块, 两个日志做 diff
 const fs = require('fs');
 const [,, fileA, cmdHex, fileB] = process.argv;
@@ -6,7 +7,7 @@ function extract(file, cmd) {
   const sessions = [];
   let cur = null, mode = false;
   for (const ln of lines) {
-    const m = ln.match(/SET h=\S+ len=65 ret=1 \[00 ((?:[0-9a-f]{2} )+)/);
+    const m = ln.match(/SET h=\S+ len=65 ret=1 \[00 ((?:[0-9a-f]{2} ?)+)\]/);
     if (!m) continue;
     const b = m[1].trim().split(' ').map(x => parseInt(x, 16));
     if (b[0] === 4 && b[1] === cmd) { cur = { header: b.slice(0), blocks: [] }; sessions.push(cur); mode = true; continue; }

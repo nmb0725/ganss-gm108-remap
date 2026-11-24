@@ -6,8 +6,37 @@ const path = require('path');
 const SCHEMA = 1;
 const NAME_RE = /^[0-9A-Za-z_\u4e00-\u9fa5-]{1,32}$/;
 
+const ACTIONS = ['default', 'disable', 'remap', 'mouse', 'media', 'combo', 'macro'];
+
 function factoryDefault(name = '出厂默认') {
   return { schema: SCHEMA, name, overrides: [] };
+}
+
+// 配置档完整校验 (修复审查 #8): 导入/保存/下发三处共用。非法即抛错, 绝不静默改名或修补。
+//   opts.requireName=false: 下发路径不要求 name 合法 (例如"键盘当前状态"视图)
+function validateConfig(c, opts = {}) {
+  const requireName = opts.requireName !== false;
+  if (!c || typeof c !== 'object') throw new Error('配置档内容不是对象');
+  if (c.schema !== SCHEMA) throw new Error(`配置档 schema 版本 ${c.schema} 与当前 ${SCHEMA} 不兼容`);
+  if (requireName && (typeof c.name !== 'string' || !NAME_RE.test(c.name))) {
+    const e = new Error(`配置档名非法: ${JSON.stringify(c.name)} (只允许中英文/数字/_/-, 1-32 字符)`);
+    e.code = 'BAD_NAME';
+    throw e;
+  }
+  if (!Array.isArray(c.overrides)) throw new Error('配置档缺 overrides 数组');
+  const seen = new Set();
+  for (const o of c.overrides) {
+    if (!o || typeof o !== 'object') throw new Error('overrides 中有非对象条目');
+    if (!Number.isInteger(o.cell) || o.cell < 1 || o.cell > 143) throw new Error(`格号越界: ${o.cell}`);
+    if (seen.has(o.cell)) throw new Error(`格号重复: ${o.cell}`);
+    seen.add(o.cell);
+    if (!ACTIONS.includes(o.action)) throw new Error(`格 ${o.cell} 未知动作: ${o.action}`);
+    if (o.target != null && typeof o.target !== 'string') throw new Error(`格 ${o.cell} target 必须是字符串`);
+    if (o.action === 'combo' && o.target == null && Array.isArray(o.keys)) o.target = o.keys.map(k => '0x' + Number(k).toString(16)).join(' + ');
+  }
+  // 线协议编码终检 (槽号/模式/usage 等范围), 失败信息来自协议层
+  require('./protocol').buildKeymap(c);
+  return c;
 }
 
 class ConfigStore {
@@ -32,7 +61,7 @@ class ConfigStore {
   }
 
   save(config) {
-    if (config.schema !== SCHEMA) throw new Error('内部错误: schema 不符');
+    validateConfig(config);
     const file = this._file(config.name);
     fs.writeFileSync(file + '.tmp', JSON.stringify(config, null, 1));
     fs.renameSync(file + '.tmp', file); // 原子替换, 避免半写
@@ -44,10 +73,9 @@ class ConfigStore {
   // 导出/导入用
   exportText(config) { return JSON.stringify(config, null, 1); }
   importText(text) {
-    const raw = JSON.parse(text);
-    if (raw.schema !== SCHEMA) throw new Error(`导入文件 schema 版本 ${raw.schema} 不兼容`);
-    if (!Array.isArray(raw.overrides)) throw new Error('导入文件缺 overrides');
-    return raw;
+    let raw;
+    try { raw = JSON.parse(text); } catch (e) { throw new Error('导入文件不是合法 JSON: ' + e.message); }
+    return validateConfig(raw); // name 非法时抛 code=BAD_NAME, 由 UI 让用户改名后重试
   }
 }
 
@@ -64,7 +92,7 @@ function setCell(config, cell, action, target) {
   return config;
 }
 
-// 宏库: 设备全局(不随配置档走), 独立存档 <file> = [{slot, name, steps:[{hid, down, delay}]}]
+// 宏库: 设备全局(不随配置档走), 独立存档 <file> = [{slot, name, steps:[{hid|mouse, down, delay}]}]
 const MACRO_SCHEMA = 1;
 class MacroStore {
   constructor(file) { this.file = file; fs.mkdirSync(path.dirname(file), { recursive: true }); }
@@ -82,4 +110,4 @@ class MacroStore {
   }
 }
 
-module.exports = { SCHEMA, ConfigStore, MacroStore, factoryDefault, computeDiff, setCell };
+module.exports = { SCHEMA, NAME_RE, ConfigStore, MacroStore, factoryDefault, validateConfig, computeDiff, setCell };

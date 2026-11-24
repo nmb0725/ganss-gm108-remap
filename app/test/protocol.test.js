@@ -224,16 +224,84 @@ test('宏库段: 10 个金样宏必须逐字节复现老软件 04 15 / 04 17 段
   assert.strictEqual(seg17.toString('hex'), GOLDEN_MACRO.blocks17[0]);
 });
 
+// 把抓到的 04 15 段解码成宏库 (事件后第一条延时并入该事件的 delay, 其余延时为独立 {wait} 步骤)
+const MOUSE_BY_BIT = { 1: 'left', 2: 'right', 4: 'middle', 8: 'back', 16: 'forward' };
+function decodeMacroSeg(seg) {
+  const lib = [];
+  for (let slot = 0; slot < 100; slot++) {
+    const p = seg.readUInt32LE(slot * 4);
+    if (!p) continue;
+    const n = seg.readUInt32LE(p), steps = [];
+    for (let k = 0; k < n; k++) {
+      const r = seg.readUInt32LE(p + 8 + 4 * k), t = r >>> 28, code = (r >>> 16) & 0xff;
+      const prev = steps[steps.length - 1];
+      if (t === 5) {
+        const ms = r & 0x0fffffff;
+        if (prev && prev.wait == null && prev.delay === 0) prev.delay = ms; else steps.push({ wait: ms });
+      } else if (t === 0xb || t === 3) steps.push({ hid: code, down: t === 0xb ? 1 : 0, delay: 0 });
+      else if (t === 9 || t === 1) steps.push({ mouse: MOUSE_BY_BIT[code], down: t === 9 ? 1 : 0, delay: 0 });
+      else if (t === 2) steps.push({ mouse: code === 0xff ? 'wheel-down' : 'wheel-up', down: 1, delay: 0 });
+      else throw new Error('未知记录类型 ' + r.toString(16));
+    }
+    lib.push({ slot, name: 's' + slot, steps });
+  }
+  return lib;
+}
+
+test('宏库段: cap_m_size.log 12 个状态 (9..17 块, 槽号不连续, 连续延时) 逐字节复现', () => {
+  const G = fix('golden-macro-size.json');
+  assert.strictEqual(G.segments.length, 12);
+  for (const g of G.segments) {
+    const want = Buffer.from(g.hex, 'hex');
+    const { seg15, seg17, blocks } = P.buildMacroSegments(decodeMacroSeg(want));
+    assert.strictEqual(blocks, g.blocks);
+    assert.ok(seg15.equals(want), `块数 ${g.blocks} 的状态与抓包不一致`);
+    assert.strictEqual(seg17[0], 0x0a);
+  }
+});
+
+test('宏段块数 = ceil(数据末尾/64)+1; 超过实测上限拒绝', () => {
+  assert.strictEqual(P.macroBlocksFor(576), 10); // 边界: 恰好 64 的倍数 (cap_m_size.log)
+  assert.strictEqual(P.macroBlocksFor(760), 13);
+  assert.strictEqual(P.macroBlocksFor(1016), 17);
+  assert.throws(() => P.buildMacroSegments([{ slot: 0, steps: Array(80).fill(S(4, 1, 100)) }]), /溢出/);
+});
+
 test('宏段头包与金样一致 (15: 13块, 17: 1块)', () => {
   const mk = c => { const b = Buffer.alloc(65); Buffer.from(c).copy(b, 1); return b.toString('hex'); };
-  assert.strictEqual(mk(P.CMD.macroHeader), GOLDEN_MACRO.header15);
+  assert.strictEqual(mk(P.macroHeaderFor(13)), GOLDEN_MACRO.header15);
   assert.strictEqual(mk(P.CMD.macroCount), GOLDEN_MACRO.header17);
 });
 
-test('宏绑定: 键位格 = 06 <槽号> 00 00 (金样锚 ctrl5 → 06 05)', () => {
+test('宏绑定: 位于 cell*4, 4字节 = 06 <槽> <mode> <次数> (cap_bindmap*.log 完整 64B 解析; 旧 bindPos 为解析 bug)', () => {
   const seg = P.buildKeymap({ overrides: [{ cell: 40, action: 'macro', slot: 5, target: 'ctrl5' }] });
-  assert.strictEqual(seg.subarray(40 * 4, 40 * 4 + 4).toString('hex'), '06050000');
+  assert.strictEqual(seg.subarray(160, 164).toString('hex'), '06050000'); // mode0=播放一次
+  assert.strictEqual(seg.subarray(156, 160).toString('hex'), '00000000'); // 前一格不受影响
+  // 三模式 (cap_mouse_mode.log): mode1 后跟 1..255 次数; mode2=再按键时停止
+  const s1 = P.buildKeymap({ overrides: [{ cell: 1, action: 'macro', slot: 3, mode: 1, loop: 200 }] });
+  assert.strictEqual(s1.subarray(4, 8).toString('hex'), '060301c8');
+  const s2 = P.buildKeymap({ overrides: [{ cell: 1, action: 'macro', slot: 3, mode: 2 }] });
+  assert.strictEqual(s2.subarray(4, 8).toString('hex'), '06030200');
+  // 同一格出现两条 => 拒绝 (旧实现"绑定覆盖格字节"的排序 hack 已删除)
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 16, action: 'macro', slot: 2 }, { cell: 16, action: 'disable' }] }), /格号重复/);
   assert.throws(() => P.buildKeymap({ overrides: [{ cell: 40, action: 'macro', slot: 100 }] }), /槽号无效/);
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 40, action: 'macro', slot: 1, mode: 3 }] }), /播放模式无效/);
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 40, action: 'macro', slot: 1, mode: 1, loop: 0 }] }), /循环次数无效/);
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 40, action: 'macro', slot: 1, mode: 1, loop: 256 }] }), /循环次数无效/);
+});
+
+test('宏绑定金样: cap_bindmap5.log 42 个绑定必须逐字节复现 (golden-bindmap.json)', () => {
+  const G = fix('golden-bindmap.json');
+  const want = Buffer.from(G.blocks.join(''), 'hex');
+  const overrides = [];
+  for (let c = 1; c <= 143; c++) {
+    const q = want.subarray(c * 4, c * 4 + 4);
+    if (!q.some(b => b)) continue;
+    assert.strictEqual(q[0], 0x06, `格 ${c} 不是宏绑定记录: ${q.toString('hex')}`);
+    overrides.push({ cell: c, action: 'macro', slot: q[1], mode: q[2], ...(q[2] === 1 ? { loop: q[3] } : {}) });
+  }
+  assert.strictEqual(overrides.length, 42);
+  assert.ok(P.buildKeymap({ overrides }).equals(want), '与金样不一致');
 });
 
 test('宏库构建校验: 槽号/步骤/间隔/溢出 拒绝', () => {
@@ -241,17 +309,18 @@ test('宏库构建校验: 槽号/步骤/间隔/溢出 拒绝', () => {
   assert.throws(() => P.buildMacroSegments([{ slot: 1, steps: [S(4, 1, 0)] }, { slot: 1, steps: [S(5, 1, 0)] }]), /槽号重复/);
   assert.throws(() => P.buildMacroSegments([{ slot: 2, steps: [] }]), /没有步骤/);
   assert.throws(() => P.buildMacroSegments([{ slot: 2, steps: [S(0, 1, 0)] }]), /键无效/);
-  assert.throws(() => P.buildMacroSegments([{ slot: 2, steps: [S(4, 1, 65536)] }]), /间隔无效/);
-  const big = [{ slot: 0, steps: Array(60).fill(S(4, 1, 100)) }];
+  assert.throws(() => P.buildMacroSegments([{ slot: 2, steps: [S(4, 1, 1000000000)] }]), /间隔无效/);
+  const big = [{ slot: 0, steps: Array(80).fill(S(4, 1, 100)) }];
   assert.throws(() => P.buildMacroSegments(big), /溢出/);
 });
 
-test('空宏库: 15段全零+aa55, 17段计数0', () => {
-  const { seg15, seg17 } = P.buildMacroSegments([]);
-  assert.strictEqual(seg15.length, 832);
-  assert.strictEqual(seg15.subarray(0, 830).every(b => !b), true);
-  assert.strictEqual(seg15.readUInt16LE(830), 0x55aa);
-  assert.strictEqual(seg17[0], 0);
+test('空宏库: 8 块 (512B) 全零 + aa55, 04 17 首字节 0x0a (cap_m_size.log 末段 14:07:48 实测)', () => {
+  const { seg15, seg17, blocks } = P.buildMacroSegments([]);
+  assert.strictEqual(blocks, 8);
+  assert.strictEqual(seg15.length, 512);
+  assert.strictEqual(seg15.subarray(0, 510).every(b => !b), true);
+  assert.strictEqual(seg15.readUInt16LE(510), 0x55aa);
+  assert.strictEqual(seg17[0], 0x0a);
 });
 
 test('宏写入会话时序: hb f0 | 17会话(6 SET) | 15会话(18 SET) | hb; f0 无 GET', async () => {
@@ -278,10 +347,81 @@ test('宏会话熔断: 无应答 => preflight 即止', async () => {
   assert.ok(dev.closed);
 });
 
+test('宏段鼠标事件: 与键事件同构 <位> <cmd> <lo> <hi> [00 50 00 00] (cap_mouse_macro.log 槽10 完整解析)', () => {
+  const M = (mouse, down, delay = 5) => ({ mouse, down, delay });
+  // 槽10 金样(完整 64B 解析)从"左键松开"起的事件流; 开头的"左键按下"在老软件里带了两段延时, 本工具合并延时, 故从第 2 个事件起比对
+  const CAP = '000001100500005000000290050000500000021005000050000004900500005000000410050000500000089005000050' +
+    '000008100500005000001090050000500000101005000050000001200500005000' + '00ff2005000050';
+  const steps = [M('left', 0), M('right', 1), M('right', 0), M('middle', 1), M('middle', 0),
+    M('back', 1), M('back', 0), M('forward', 1), M('forward', 0), M('wheel-up', 1), M('wheel-down', 1)];
+  const { seg15 } = P.buildMacroSegments([{ slot: 0, name: 'mouse', steps }]);
+  assert.strictEqual(seg15.readUInt32LE(400), 22); // 11 事件 + 11 延时
+  assert.strictEqual(seg15.subarray(408, 408 + CAP.length / 2).toString('hex'), CAP);
+  // 键/鼠混排: A按下(04 b0) 鼠标左键按下 松开, 无延时
+  const { seg15: mix } = P.buildMacroSegments([{ slot: 0, name: 'x', steps: [S(0x04, 1, 0), { mouse: 'left', down: 1, delay: 0 }, { mouse: 'left', down: 0, delay: 0 }] }]);
+  assert.strictEqual(mix.subarray(400, 422).toString('hex'), '03000000' + '00'.repeat(6) + '04b00000' + '01900000' + '0110' + '0000');
+  assert.throws(() => P.buildMacroSegments([{ slot: 0, steps: [{ mouse: 'nope', down: 1, delay: 0 }] }]), /鼠标步骤无效/);
+  assert.throws(() => P.buildMacroSegments([{ slot: 0, steps: [{ mouse: 'left', down: 1, delay: 1000000000 }] }]), /间隔无效/);
+});
+
+test('entrySig: 参数级变更可辨 (换目标/换槽号=变更, 仅改名=非变更)', () => {
+  const S = P.entrySig;
+  assert.notStrictEqual(S({ cell: 1, action: 'remap', mod: 0, hid: 4 }), S({ cell: 1, action: 'remap', mod: 0, hid: 5 }));
+  assert.notStrictEqual(S({ cell: 1, action: 'remap', mod: 0, hid: 4 }), S({ cell: 1, action: 'remap', mod: 8, hid: 4 }));
+  assert.notStrictEqual(S({ cell: 1, action: 'macro', slot: 0, target: '宏A' }), S({ cell: 1, action: 'macro', slot: 1, target: '宏A' }));
+  assert.strictEqual(S({ cell: 1, action: 'macro', slot: 0, target: '宏A' }), S({ cell: 1, action: 'macro', slot: 0, target: '宏A改名' }));
+  assert.notStrictEqual(S({ cell: 1, action: 'macro', slot: 0, mode: 0 }), S({ cell: 1, action: 'macro', slot: 0, mode: 1, loop: 5 }));
+  assert.notStrictEqual(S({ cell: 1, action: 'macro', slot: 0, mode: 1, loop: 5 }), S({ cell: 1, action: 'macro', slot: 0, mode: 1, loop: 6 }));
+  assert.strictEqual(S({ cell: 1, action: 'macro', slot: 0, mode: 0, loop: 5 }), S({ cell: 1, action: 'macro', slot: 0, mode: 0 })); // 非多次模式 loop 不算变更
+  assert.strictEqual(S({ cell: 1, action: 'macro', slot: 0 }), S({ cell: 1, action: 'macro', slot: 0, mode: 0 })); // 缺省=mode0
+  assert.notStrictEqual(S({ cell: 1, action: 'mouse', button: 'left' }), S({ cell: 1, action: 'mouse', button: 'right' }));
+  assert.notStrictEqual(S({ cell: 1, action: 'media', usage: 233 }), S({ cell: 1, action: 'media', usage: 234 }));
+  assert.notStrictEqual(S({ cell: 1, action: 'combo', keys: [4, 5] }), S({ cell: 1, action: 'combo', keys: [4, 6] }));
+  assert.strictEqual(S({ cell: 1, action: 'disable' }), S({ cell: 2, action: 'disable' }));
+});
+
 test('宏库存档: MacroStore 读写/缺省空', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ganss-macro-'));
   const ms = new CS.MacroStore(path.join(dir, 'macros.json'));
   assert.deepStrictEqual(ms.load(), []); // 文件不存在 => 空库
   ms.save(MACRO_LIB);
   assert.deepStrictEqual(ms.load(), MACRO_LIB);
+});
+
+test('宏延时记录: u32LE = 0x50000000 | ms, 支持 >65535 (cap_m_delay2.log 槽11 实测)', () => {
+  // 老软件 DLY 宏: A Dn, Delay 500, A Up, Delay 65536, Delay 1000000, Delay 99999999
+  //   => 06000000 00000000 | 000004b0 f4010050 00000430 00000150 40420f50 ffe0f555
+  const CAP = '0600000000000000' + '000004b0' + 'f4010050' + '00000430' + '00000150' + '40420f50' + 'ffe0f555';
+  // 本工具每步只有一个"之后等待", 连续延时用多个 0 时长事件无法表达, 故分段验证每种长度的编码
+  const one = ms => P.buildMacroSegments([{ slot: 0, steps: [S(0x04, 1, ms)] }]).seg15.subarray(408, 416).toString('hex');
+  assert.strictEqual(one(500), '000004b0' + 'f4010050');
+  assert.strictEqual(one(65536), '000004b0' + '00000150');
+  assert.strictEqual(one(1000000), '000004b0' + '40420f50');
+  assert.strictEqual(one(99999999), '000004b0' + 'ffe0f555');
+  // 前半段 (A Dn 500, A Up 65536) 逐字节等于抓包
+  const { seg15 } = P.buildMacroSegments([{ slot: 0, steps: [S(0x04, 1, 500), S(0x04, 0, 65536)] }]);
+  assert.strictEqual(seg15.subarray(400, 424).toString('hex'), '0400000000000000' + CAP.slice(16, 48));
+  // 超过单条上限 0x0FFFFFFF 时拆成多条
+  const big = P.buildMacroSegments([{ slot: 0, steps: [S(0x04, 1, 0x0FFFFFFF + 5)] }]).seg15;
+  assert.strictEqual(big.readUInt32LE(400), 3);
+  assert.strictEqual(big.subarray(412, 420).toString('hex'), 'ffffff5f' + '05000050');
+});
+
+test('宏修饰键: 左Shift e1 / 左Alt e2 / 左Win e3 / 右Shift e5 / 右Alt e6 (cap_m_mods.log 槽12 实测)', () => {
+  const st = [[0xe1, 1, 61], [0xe1, 0, 1445], [0xe2, 1, 90], [0xe2, 0, 1498], [0xe3, 1, 61], [0xe3, 0, 2668],
+    [0xe5, 1, 61], [0xe5, 0, 1582], [0xe6, 1, 62], [0xe6, 0, 0]].map(([h, d, ms]) => S(h, d, ms));
+  const CAP = ['0000e1b0', '3d000050', '0000e130', 'a5050050', '0000e2b0', '5a000050', '0000e230', 'da050050',
+    '0000e3b0', '3d000050', '0000e330', '6c0a0050', '0000e5b0', '3d000050', '0000e530', '2e060050', '0000e6b0', '3e000050', '0000e630'];
+  const { seg15 } = P.buildMacroSegments([{ slot: 0, name: 'MODS', steps: st }]);
+  assert.strictEqual(seg15.subarray(400, 408 + CAP.length * 4).toString('hex'), '13000000' + '00000000' + CAP.join(''));
+});
+
+test('改键: 界面传来的 mod=0 (普通键 / 快捷键预设) 合法, 等同无修饰', () => {
+  // 界面捕捉普通键时写 mod:0; 旧校验要求 1..255, 会让普通改键在保存/写入时报"修饰位无效"
+  const seg = P.buildKeymap({ overrides: [{ cell: 97, action: 'remap', mod: 0, hid: 4, target: 'A' }, { cell: 113, action: 'remap', mod: 0, hid: 0x47, target: '亮度 −' }] });
+  assert.strictEqual(seg.subarray(97 * 4, 97 * 4 + 4).toString('hex'), '02000400');
+  assert.strictEqual(seg.subarray(113 * 4, 113 * 4 + 4).toString('hex'), '02004700');
+  const mac = P.buildKeymap({ overrides: [{ cell: 97, action: 'remap', mod: 10, hid: 33, target: 'Cmd + Shift + 4' }] });
+  assert.strictEqual(mac.subarray(97 * 4, 97 * 4 + 4).toString('hex'), '020a2100');
+  assert.throws(() => P.buildKeymap({ overrides: [{ cell: 97, action: 'remap', mod: 0 }] }), /为空/);
 });
