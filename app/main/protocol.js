@@ -78,7 +78,7 @@ function buildKeymap(config) {
       // 线格式(抓包解码, cap_modifier.log + cap_modifier3.log): 4字节 = 02 <修饰位> <HID usage> 00
       //   实测锚: 单普通键 byte[2]=usage (空格=02002c00, ↑=02005200, 菜单=02006500, A=02000400)
       //           单修饰键 byte[1]=1<<(usage-0xE0) (右Ctrl=02100000, 左Shift=02020000 等 10/10 吻合)
-      //   组合键(两位同时非零, 如 Ctrl+A = 02 01 04 00)按 HID 语义自然扩展, 未经抓包证实, 错码只会错键
+      //   组合键(两位同时非零, 如 Ctrl+A = 02 01 04 00): 老软件不支持故无法抓包; 2026-11-24 用户实机确认可用
       let mod = 0, usage = 0;
       if (o.mod != null) {
         if (!Number.isInteger(o.mod) || o.mod < 0 || o.mod > 0xff) throw new ProtocolAbort('build', `改键目标修饰位无效: ${o.mod} (需 0..255)`);

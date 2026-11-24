@@ -15,7 +15,7 @@ GANSS GM108 机械键盘的开源改键 / 键位配置工具。基于 Electron +
 ### 功能
 
 - **按键映射**: 按真实布局点键, 可设为默认 / 键盘功能 (改键或带 Ctrl、Alt、Shift、Win 的组合键) / 鼠标 / 宏 / 连击 / 多媒体 / 系统快捷键 (Windows、macOS) / 禁用。改过的键按功能着色。
-- **直接映射组合键**: 可以把一个键直接设成 Ctrl+A、Win+Shift+S 等组合键。官方老软件的单键映射不支持组合键, 只能录宏代替; 这是写本工具的主要原因之一。(组合键在固件上的效果尚待实机确认。)
+- **直接映射组合键**: 可以把一个键直接设成 Ctrl+A、Win+Shift+S 等组合键。官方老软件的单键映射不支持组合键, 只能录宏代替; 这是写本工具的主要原因之一。(已实机确认可用。)
 - **macOS 功能键**: 预设屏幕亮度、推出、调度中心、启动台、地球键, 以及 Spotlight、截图、锁屏等常用 Mac 快捷键 (老软件没有)。部分项目待在 Mac 上实机确认。
 - **宏库**: 录制按键序列, 逐条调整"之后等待"和顺序, 可手动插入按键、鼠标事件、延时 (最长 99999999 ms); 显示总时长和占用空间。宏存放在键盘里, 所有配置档共用。
 - **配置档**: 新建 / 保存 / 另存为 / 删除 / 导入 / 导出 (JSON)。
@@ -96,7 +96,7 @@ An open-source key remapping tool for the **GANSS GM108** mechanical keyboard, b
 ### Features
 
 - **Key mapping**: click keys on a true-to-life layout and set them to default, a key or combo (with Ctrl/Alt/Shift/Win), mouse, macro, multi-key sequence, media key, a Windows/macOS system shortcut, or disabled. Modified keys are colour-coded by function.
-- **Direct combo mapping**: map a single key straight to a combo such as Ctrl+A or Win+Shift+S. The official legacy software cannot do this in its key mapping and only offers recording a macro instead, which is one of the main reasons this tool exists. (How the firmware handles combos is still to be confirmed on the device.)
+- **Direct combo mapping**: map a single key straight to a combo such as Ctrl+A or Win+Shift+S. The official legacy software cannot do this in its key mapping and only offers recording a macro instead, which is one of the main reasons this tool exists. (Confirmed working on the device.)
 - **macOS function keys**: presets for display brightness, Eject, Mission Control, Launchpad and the Globe key, plus common Mac shortcuts such as Spotlight, screenshots and lock screen (not in the legacy software). Some are still to be confirmed on a Mac.
 - **Macro library**: record key sequences, adjust each step's wait and order, insert keys, mouse events and delays (up to 99,999,999 ms); shows total duration and storage used. Macros are stored in the keyboard and shared by all profiles.
 - **Profiles**: new / save / save-as / delete / import / export (JSON).

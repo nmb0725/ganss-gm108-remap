@@ -995,9 +995,16 @@ $('mac-del').addEventListener('click', async () => {
   const m = macroLib.find(x => x.slot === mmSel);
   if (!m) return;
   const bound = (config.overrides || []).filter(o => o.action === 'macro' && o.slot === mmSel);
-  const extra = bound.length
-    ? `<br><br>当前草稿里有 <b>${bound.length}</b> 个键 (${bound.map(o => keyNameByCell.get(o.cell) || '格' + o.cell).join(', ')}) 绑定了该宏, 删除后这些键将恢复默认功能。`
+  let extra = bound.length
+    ? `<br><br>当前草稿里有 <b>${bound.length}</b> 个键 (${esc(bound.map(o => keyNameByCell.get(o.cell) || '格' + o.cell).join(', '))}) 绑定了该宏, 删除后这些键将恢复默认功能。`
     : '';
+  // #24: 其他已保存的配置档也在用这个宏 => 只提醒, 不改动它们
+  let refs = [];
+  try { refs = (await window.api.macroRefs(mmSel)).filter(n => n !== currentProfile); } catch {}
+  if (refs.length) {
+    extra += `<br><br><span class="warn">⚠ 另有配置档 ${refs.map(n => '「' + esc(n) + '」').join(' ')} 也绑定了这个宏。</span>`
+      + '这些配置档不会被修改: 写入它们时会提示宏槽不存在; 如果之后新建的宏占用了这个槽号, 它们会改为播放新宏。';
+  }
   if (!await askDialog({ title: `删除槽 ${mmSel}「${m.name}」?`, bodyHTML: '删除宏库中该槽的数据, 点"写入到键盘"后在键盘上生效。' + extra, okText: '删除', danger: true })) return;
   for (const o of bound) {
     const i = config.overrides.indexOf(o);

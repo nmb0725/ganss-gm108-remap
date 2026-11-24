@@ -27,5 +27,6 @@ contextBridge.exposeInMainWorld('api', {
 
   listMacros: () => ipcRenderer.invoke('macro:list'),
   saveMacros: (slots) => ipcRenderer.invoke('macro:save', slots),
-  checkMacros: (slots) => ipcRenderer.invoke('macro:check', slots)
+  checkMacros: (slots) => ipcRenderer.invoke('macro:check', slots),
+  macroRefs: (slot) => ipcRenderer.invoke('macro:refs', slot)
 });

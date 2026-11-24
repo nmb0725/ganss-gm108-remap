@@ -119,6 +119,7 @@ ipcMain.handle('cfg:mark-unknown', () => { markUnknown(appliedFile, '用户手�
 // ---- 宏库 (设备全局, 与配置档无关) ----
 ipcMain.handle('macro:list', () => macroStore.load());
 ipcMain.handle('macro:save', (_e, slots) => { macroStore.save(slots); return true; });
+ipcMain.handle('macro:refs', (_e, slot) => store.macroRefs(slot));
 // 修复审查 #21: 保存前用协议层同一套编码检查容量/合法性
 ipcMain.handle('macro:check', (_e, slots) => {
   try { buildMacroSegments(slots); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }

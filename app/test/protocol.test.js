@@ -60,7 +60,7 @@ test('改键: 修饰键走标准 HID 修饰位 (实测锚 cap_modifier*.log)', (
   }
 });
 
-test('改键: 组合键与纯修饰键新格式 {mod,hid} (组合位为线格式扩展, 未经抓包)', () => {
+test('改键: 组合键与纯修饰键新格式 {mod,hid} (老软件不支持, 2026-11-24 实机确认可用)', () => {
   const cases = [
     [56, { mod: 0x01, hid: 4 }, '02010400'],   // Ctrl+A
     [57, { mod: 0x02, hid: 62 }, '02023e00'],  // Shift+F5 (F5 usage=0x3E)
@@ -424,4 +424,15 @@ test('改键: 界面传来的 mod=0 (普通键 / 快捷键预设) 合法, 等同
   const mac = P.buildKeymap({ overrides: [{ cell: 97, action: 'remap', mod: 10, hid: 33, target: 'Cmd + Shift + 4' }] });
   assert.strictEqual(mac.subarray(97 * 4, 97 * 4 + 4).toString('hex'), '020a2100');
   assert.throws(() => P.buildKeymap({ overrides: [{ cell: 97, action: 'remap', mod: 0 }] }), /为空/);
+});
+
+test('#24 配置档宏引用: macroRefs 列出绑定了某槽的已保存配置档', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ganss-refs-'));
+  const store = new CS.ConfigStore(dir);
+  store.save({ schema: 1, name: '游戏', overrides: [{ cell: 20, action: 'macro', slot: 3 }, { cell: 92, action: 'disable' }] });
+  store.save({ schema: 1, name: '办公', overrides: [{ cell: 38, action: 'macro', slot: 5 }] });
+  store.save({ schema: 1, name: '空', overrides: [] });
+  assert.deepStrictEqual([...store.macroRefs(3)], ['游戏']);
+  assert.deepStrictEqual([...store.macroRefs(5)], ['办公']);
+  assert.deepStrictEqual([...store.macroRefs(7)], []);
 });

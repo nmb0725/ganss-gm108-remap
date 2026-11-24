@@ -70,6 +70,18 @@ class ConfigStore {
 
   remove(name) { fs.unlinkSync(this._file(name)); }
 
+  // #24: 哪些已保存的配置档绑定了某个宏槽 (删宏前提醒用; 读不了的档跳过)
+  macroRefs(slot) {
+    const out = [];
+    for (const name of this.list()) {
+      try {
+        const c = this.load(name);
+        if ((c.overrides || []).some(o => o.action === 'macro' && o.slot === slot)) out.push(name);
+      } catch {}
+    }
+    return out;
+  }
+
   // 导出/导入用
   exportText(config) { return JSON.stringify(config, null, 1); }
   importText(text) {
