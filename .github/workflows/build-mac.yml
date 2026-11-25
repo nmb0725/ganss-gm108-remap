@@ -29,9 +29,13 @@ jobs:
       - name: Run unit tests
         run: npm test
 
-      # 产出 dist/mac-arm64/*.app (arm64) 和 dist/mac/*.app (x64), 配置见 package.json 的 build.mac
+      # 产出 dist/mac-arm64/*.app (arm64) 和 dist/mac/*.app (x64)
+      # 注意: 命令行 --mac dir 会把架构重置成宿主架构, 必须分别显式指定 --arm64 / --x64
       - name: Build .app bundles
-        run: npx electron-builder --mac dir --publish never
+        run: |
+          npx electron-builder --mac dir --arm64 --publish never
+          npx electron-builder --mac dir --x64 --publish never
+          ls -d dist/mac*/
 
       - name: Ad-hoc sign and zip
         run: |
