@@ -8,7 +8,9 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    # 用 macos-latest: 直接写 macos-14 在个人账户下会被 GitHub 立即取消 (0 步, conclusion=cancelled)
+    runs-on: macos-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: app
