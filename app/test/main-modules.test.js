@@ -162,3 +162,41 @@ test('设备监视: 主进程不再调用同步 HID.devices()', () => {
   assert.ok(/devicesAsync/.test(code));
   assert.ok(!/=>\s*classify\(hid\.devices\(\)\)|classify\(HID\.devices\(\)\)/.test(code), '不应在主线程同步枚举');
 });
+
+// ---- 跨平台接口挑选 (macOS 打包: 路径里没有 mi_00) ----
+const { classify } = require('../main/device-watcher');
+const GM_IFACES = [
+  { vendorId: 0x0c45, productId: 0x8006, usagePage: 1, usage: 6, path: 'IOService:/.../AppleUserHIDEventDriver/Keyboard@0/IOHIDUserDevice', product: 'GM108 Keyboard' },
+  { vendorId: 0x0c45, productId: 0x8006, usagePage: 1, usage: 2, path: 'IOService:/.../Mouse@1/IOHIDUserDevice' },
+  { vendorId: 0x0c45, productId: 0x8006, usagePage: 12, usage: 0, path: 'IOService:/.../Consumer@2/IOHIDUserDevice' },
+  { vendorId: 0x0c45, productId: 0x8006, usagePage: 65535, usage: 1, path: 'IOService:/.../Vendor@3/IOHIDUserDevice' }
+];
+
+test('classify: win32 仍按 mi_00 + kbd 选接口 (实测路径)', () => {
+  const winList = [
+    { vendorId: 0x0c45, productId: 0x8006, path: '\\\\?\\HID#VID_0C45&PID_8006&MI_01#1\\{g}' },
+    { vendorId: 0x0c45, productId: 0x8006, path: '\\\\?\\HID#VID_0C45&PID_8006&MI_00#8\\{g}' },
+    { vendorId: 0x0c45, productId: 0x8006, path: '\\\\?\\HID#VID_0C45&PID_8006&MI_00#8\\{g}\\kbd' }
+  ];
+  assert.strictEqual(classify(winList, 'win32').path, winList[2].path);
+  // Windows 上没有 mi_00 时不得退回别的接口
+  assert.strictEqual(classify([GM_IFACES[2]], 'win32').present, false);
+});
+
+test('classify: darwin/linux 按 usagePage=1 & usage=6 选键盘接口', () => {
+  for (const p of ['darwin', 'linux']) {
+    const r = classify(GM_IFACES, p);
+    assert.strictEqual(r.present, true, p);
+    assert.strictEqual(r.path, GM_IFACES[0].path, p);
+  }
+  // 没有 usage=6 时退回 usagePage=1
+  assert.strictEqual(classify(GM_IFACES.slice(1), 'darwin').path, GM_IFACES[1].path);
+  // 只有非键盘接口也至少能报"已连接" (不至于完全认不出键盘)
+  assert.strictEqual(classify([GM_IFACES[3]], 'darwin').present, true);
+});
+
+test('classify: BOOT 模式优先, 与平台无关', () => {
+  const list = [{ vendorId: 0x0c45, productId: 0x7040, path: 'IOService:/boot' }, GM_IFACES[0]];
+  assert.strictEqual(classify(list, 'darwin').mode, 'boot');
+  assert.strictEqual(classify(list, 'win32').mode, 'boot');
+});

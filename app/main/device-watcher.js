@@ -17,12 +17,24 @@ const TARGETS = {
 };
 const SLOW_MS = 300;
 
-function classify(devices) {
+function pickNormal(cands, platform) {
+  if (platform === 'win32') {
+    // Windows (实测): 只有 mi_00 那组接口支持 Feature 报告; 其中路径以 kbd 结尾的可用
+    const w = cands.filter(d => /mi_00/i.test(d.path || ''));
+    return w.find(d => /kbd$/i.test(d.path || '')) || w[0];
+  }
+  // macOS / Linux: 设备路径里没有 "mi_00" 这种 Windows 专有字符串, 只能按 usagePage 挑接口。
+  // GM108 会同时枚举出 usagePage 1 (键盘) / 12 (Consumer) / 65280 / 65535 (厂商) 等接口,
+  // 键位段命令走的是键盘接口 => 优先 usagePage=1 且 usage=6 (HID Generic Desktop: Keyboard)。
+  // 注意: 这一段是推断, 尚未在 Mac 上实测 (2026-11-25)。
+  return cands.find(d => d.usagePage === 1 && d.usage === 6) || cands.find(d => d.usagePage === 1) || cands[0];
+}
+
+function classify(devices, platform = process.platform) {
   const boot = devices.find(d => d.vendorId === TARGETS.boot.vendorId && d.productId === TARGETS.boot.productId);
   if (boot) return { present: true, mode: 'boot', path: boot.path, product: boot.product || 'GM108 (BOOT)' };
-  // kbd 结尾的路径是实测可用接口; 若同时出现多条, 优先 kbd
-  const cands = devices.filter(d => d.vendorId === TARGETS.normal.vendorId && d.productId === TARGETS.normal.productId && /mi_00/i.test(d.path || ''));
-  const dev = cands.find(d => /kbd$/i.test(d.path || '')) || cands[0];
+  const cands = devices.filter(d => d.vendorId === TARGETS.normal.vendorId && d.productId === TARGETS.normal.productId);
+  const dev = pickNormal(cands, platform);
   if (!dev) return { present: false };
   return { present: true, mode: 'normal', path: dev.path, product: dev.product || 'GANSS GM108', serial: dev.serialNumber || null };
 }

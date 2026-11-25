@@ -1,0 +1,54 @@
+# macOS 构建 (Windows/Linux 上无法用 electron-builder 打 mac 包, 只能由 macOS 运行时代劳)
+# 手动触发: Actions -> "Build macOS app" -> Run workflow
+# 产物: 未分发签名、已 ad-hoc 签名的 .app 压缩包 (arm64 / x64 各一份)
+name: Build macOS app
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      # 产出 dist/mac-arm64/*.app (arm64) 和 dist/mac/*.app (x64), 配置见 package.json 的 build.mac
+      - name: Build .app bundles
+        run: npx electron-builder --mac dir --publish never
+
+      - name: Ad-hoc sign and zip
+        run: |
+          set -euo pipefail
+          APP_NAME="GANSS GM108 Remap.app"
+          for pair in "mac-arm64:arm64" "mac:x64"; do
+            dir="${pair%%:*}"; arch="${pair##*:}"
+            src="dist/$dir/$APP_NAME"
+            [ -d "$src" ] || { echo "缺少 $src"; exit 1; }
+            # ad-hoc 签名 (-): Apple Silicon 上任何被改动过的 Mach-O 都必须有签名, 否则直接被判为无效
+            codesign --force --deep --sign - "$src"
+            codesign --verify --verbose=2 "$src"
+            # ditto 保留符号链接与可执行权限 (zip 命令在跨文件系统时会丢)
+            ditto -c -k --keepParent "$src" "dist/GM108-Remap-${GITHUB_SHA:0:7}-mac-$arch.zip"
+          done
+          ls -l dist/*.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GM108-Remap-mac
+          path: app/dist/*-mac-*.zip
+          if-no-files-found: error

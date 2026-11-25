@@ -6,7 +6,8 @@ const fs = require('fs');
 //   在这台电脑上从 L: 盘启动时沙箱起不来, GPU / 渲染进程一启动就退出, 表现为闪退。
 //   必须在 app ready 之前调用。风险评估: 界面只加载本地文件 (CSP default-src 'self'),
 //   contextIsolation 开启、nodeIntegration 关闭, 不加载任何网页, 关闭沙箱的影响很小。
-app.commandLine.appendSwitch('no-sandbox');
+// 只在 Windows 上关 (macOS / Linux 上 Chromium 沙箱正常, 没必要放弃这层隔离)。
+if (process.platform === 'win32') app.commandLine.appendSwitch('no-sandbox');
 
 // 通过环境变量 GM108_DISABLE_GPU=1 关闭硬件加速 (界面只有 SVG, 关掉无影响)
 if (process.env.GM108_DISABLE_GPU === '1' || process.argv.includes('--disable-gpu')) {
