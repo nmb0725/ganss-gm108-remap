@@ -40,12 +40,28 @@ test('#3 apply 永不响应 => 软超时只提示, 硬上限后 stuck 并 termin
   assert.ok(W.made[0].terminated, '硬上限必须 terminate, 不留僵尸 worker');
 });
 
-test('#3 非 apply 操作超时 => 失败并 terminate', async () => {
+test('#Mac 非 apply 操作超时 => 失败但不 terminate (terminate 打不断卡在 native 调用里的线程, 会让整个进程 abort)', async () => {
   const W = fakeWorkerCtor(() => {});
   const run = createWorkerRunner({ WorkerCtor: W, workerFile: 'x' });
   const r = await run('version', 'p', {}, 20);
   assert.strictEqual(r.ok, false);
-  assert.ok(W.made[0].terminated);
+  assert.strictEqual(r.abandoned, true);
+  assert.ok(!W.made[0].terminated, '只读操作超时绝不能 terminate worker');
+});
+
+test('#Mac HID 操作串行: 有操作在跑时 skipIfBusy 直接跳过, 前一个退出后才能派下一个', async () => {
+  const W = fakeWorkerCtor((w, m) => setImmediate(() => {
+    w.emit('message', { id: m.id, ok: true, result: 'v' });
+    setImmediate(() => w.emit('exit', 0));
+  }));
+  const run = createWorkerRunner({ WorkerCtor: W, workerFile: 'x' });
+  const a = run('version', 'p', {}, 1000);
+  const b = run('version', 'p', {}, 1000, { skipIfBusy: true });
+  assert.strictEqual((await b).skipped, true, '被跳过时不应起第二个 worker');
+  assert.strictEqual(W.made.length, 1);
+  assert.strictEqual((await a).ok, true);
+  assert.strictEqual((await run('version', 'p', {}, 1000)).ok, true, '前一个退出后应能继续');
+  assert.strictEqual(W.made.length, 2);
 });
 
 test('#4 进度消息 keymap-ok 后宏失败 => keymapMaybeApplied=true', async () => {

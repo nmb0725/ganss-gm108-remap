@@ -100,7 +100,8 @@ ipcMain.handle('device:version', async () => {
   if (applying || suspectDeviceBusy) return null;
   const s = await findGm108();
   if (!s.present || s.mode !== 'normal') return null;
-  const r = await runHidWorker('version', s.path, {}, 5000);
+  // 版本只是顶栏一个可选项(本通道实测恒全零), 不值得为它并发打开设备 => 忙就直接跳过
+  const r = await runHidWorker('version', s.path, {}, 5000, { skipIfBusy: true });
   return r.ok ? r.result : null;
 });
 
