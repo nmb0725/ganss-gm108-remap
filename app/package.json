@@ -1,7 +1,7 @@
 {
   "name": "ganss-remap",
   "productName": "GANSS GM108 改键工具",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "GM108 可视化改键工具: 默认/禁用/改键 + 配置存档 + 安全下发",
   "main": "main/main.js",
   "private": true,
@@ -9,7 +9,8 @@
     "start": "electron .",
     "test": "node --test test/protocol.test.js test/review-issues.test.js test/main-modules.test.js",
     "dist": "electron-builder --win portable --publish never",
-    "dist:mac": "electron-builder --mac dir --publish never"
+    "dist:mac": "electron-builder --mac dir --publish never",
+    "dist:local": "electron-builder --win portable --config.win.signAndEditExecutable=false --publish never"
   },
   "build": {
     "appId": "com.ganss.gm108-remap",

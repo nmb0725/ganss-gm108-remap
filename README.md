@@ -34,6 +34,7 @@ npm install
 npm test                         # 离线单测, 不碰键盘
 npm start                        # 开发运行
 npm run dist                     # 打包, 产物: app/dist/*-portable.exe
+npm run dist:local               # 同上, 但跳过写入 exe 资源与签名 => 不需要联网下载 winCodeSign, 适合本机调试
 ```
 
 > 部分 Windows 电脑上 Chromium 沙箱无法启动, 程序会一打开就闪退。本工具只在 Windows 上关闭沙箱 (`--no-sandbox`), 打包后的 `win-unpacked\` 可以直接运行。界面只加载本地文件, 关闭沙箱的影响很小; macOS / Linux 上仍保留沙箱。
