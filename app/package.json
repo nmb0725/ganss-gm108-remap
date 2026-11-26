@@ -6,7 +6,7 @@
   "main": "main/main.js",
   "private": true,
   "scripts": {
-    "start": "electron . --no-sandbox",
+    "start": "electron .",
     "test": "node --test test/protocol.test.js test/review-issues.test.js test/main-modules.test.js",
     "dist": "electron-builder --win portable --publish never",
     "dist:mac": "electron-builder --mac dir --publish never"

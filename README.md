@@ -40,6 +40,22 @@ npm run dist                     # 打包, 产物: app/dist/*-portable.exe
 >
 > npm 下载 Electron 二进制若被拦截, 可设置镜像: `set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`
 
+#### macOS
+
+```bash
+cd app
+npm install
+npm run dist:mac                 # 打包 arm64 + x64; 也可用 GitHub Actions 手动跑 "Build macOS app"
+```
+
+装好后首次运行要做两件事, 否则点"写入到键盘"会报 `0xE00002C1` 而中止:
+
+1. 去掉下载带来的隔离属性 (从 GitHub 下的 zip 一定带): `xattr -dr com.apple.quarantine "/Applications/GANSS GM108 Remap.app"`
+2. 系统偏好设置 → 隐私与安全性 → **输入监控** → `+` 添加本 App 并勾选, 然后**完全退出本工具再重开** (授权必须重启进程才生效)。
+   原因: 键位段命令走的 `usagePage 1 / usage 6` 键盘接口正被系统键盘驱动使用, 打开它属于特权操作。
+
+> CI 产物是 ad-hoc 签名 (未做公证), 系统按签名指纹记账, **重新打包/覆盖安装后这个勾选可能失效, 需要重新勾一次**。
+
 ### 使用流程
 
 1. 关闭 GANSS 官方老配置软件 (它会独占键盘), 插好键盘, 打开本工具。顶栏应显示绿色的"GANSS GM108 已连接"。
@@ -53,7 +69,7 @@ npm run dist                     # 打包, 产物: app/dist/*-portable.exe
 
 键盘主控为 SONiX SN32F240B (ARM Cortex-M0)。配置以 HID Feature Report 写入:
 
-- 命令通道: `VID_0C45&PID_8006` 的 mi_00 键盘接口。
+- 命令通道: `VID_0C45&PID_8006` 的 mi_00 键盘接口 (macOS 上即 `IOUSBHostInterface@0`, `usagePage 1 / usage 6`, 带 64 字节 Feature 报告 0x00)。
 - 写会话: `04 ab` 握手 → 随机挑战块 → `04 02` 状态 → 段头 `04 <段号>` (含块数) → N×64B 数据块 → `04 02` 收尾, 前后各一次 `04 18` 心跳。每一步都校验应答。
 - 键位段 (`04 11`): 640 字节, 每格 4 字节, 位于 `格号 × 4`。改键 = `02 <修饰位> <HID usage> 00`, 禁用 = `05 03 00 00`, 宏绑定 = `06 <槽> <模式> <次数>`。
 - 宏库段 (`04 15`): 100 个槽的指针表 + 宏数据, 每步 4 字节 (按键 / 鼠标 / 延时), 段长随宏的多少变化。

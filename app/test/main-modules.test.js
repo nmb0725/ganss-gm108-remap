@@ -27,17 +27,18 @@ test('#3 worker 只 exit 不发消息 => 立即失败, 不永久挂起', async (
   const run = createWorkerRunner({ WorkerCtor: W, workerFile: 'x' });
   const r = await run('apply', 'p', {});
   assert.strictEqual(r.ok, false);
-  assert.match(r.error, /意外退出/);
+  assert.match(r.error, /已结束而没有任何结果/);
 });
 
-test('#3 apply 永不响应 => 软超时只提示, 硬上限后 stuck 并 terminate', async () => {
+test('#3 apply 永不响应 => 软超时只提示, 硬上限后 stuck (但不 terminate, 见 #Mac 用例)', async () => {
   let pending = 0;
   const W = fakeWorkerCtor(() => {});
   const run = createWorkerRunner({ WorkerCtor: W, workerFile: 'x', onPending: () => pending++, softMs: 10, hardMs: 40 });
   const r = await run('apply', 'p', {});
   assert.strictEqual(r.stuck, true);
   assert.strictEqual(pending, 1, '软超时应提示一次');
-  assert.ok(W.made[0].terminated, '硬上限必须 terminate, 不留僵尸 worker');
+  assert.ok(!W.made[0].terminated, '硬上限也不能 terminate: 打不断 native 调用, 只会让整个进程 abort');
+  assert.strictEqual((await run('apply', 'p', {})).wedged, true, '卡死的 worker 未退出前应拒绝新写入');
 });
 
 test('#Mac 非 apply 操作超时 => 失败但不 terminate (terminate 打不断卡在 native 调用里的线程, 会让整个进程 abort)', async () => {
@@ -62,6 +63,51 @@ test('#Mac HID 操作串行: 有操作在跑时 skipIfBusy 直接跳过, 前一�
   assert.strictEqual((await a).ok, true);
   assert.strictEqual((await run('version', 'p', {}, 1000)).ok, true, '前一个退出后应能继续');
   assert.strictEqual(W.made.length, 2);
+});
+
+test('#Mac 并发调用必须串行: 上一个 worker 退出前不得创建下一个', async () => {
+  let releaseA;
+  const gateA = new Promise(r => { releaseA = r; });
+  const W = fakeWorkerCtor((w, m) => {
+    const finish = () => { w.emit('message', { id: m.id, ok: true, result: 'v' }); w.emit('exit', 0); };
+    if (m.serial === 'a') gateA.then(finish); else setImmediate(finish);
+  });
+  const run = createWorkerRunner({ WorkerCtor: W, workerFile: 'x' });
+  const a = run('version', 'p', { serial: 'a' }, 2000);
+  const b = run('version', 'p', { serial: 'b' }, 2000);
+  await new Promise(r => setImmediate(r));
+  assert.strictEqual(W.made.length, 1, 'A 的 worker 还没退出, B 不能创建第二个 (并发打开设备会 abort)');
+  releaseA();
+  assert.strictEqual((await a).ok, true);
+  assert.strictEqual((await b).ok, true);
+  assert.strictEqual(W.made.length, 2);
+});
+
+test('#Mac 只读超时后迟到返回 => worker 退出, 后续写入仍可执行 (队列不能永久卡死)', async () => {
+  let n = 0, lateReturn;
+  const W = fakeWorkerCtor((w, m) => {
+    n++;
+    const finish = () => { w.emit('message', { id: m.id, ok: true, result: 'v' }); w.emit('exit', 0); };
+    if (n === 1) lateReturn = finish; else setImmediate(finish);
+  });
+  const run = createWorkerRunner({ WorkerCtor: W, workerFile: 'x' });
+  assert.strictEqual((await run('version', 'p', {}, 20)).abandoned, true, '只读超时应标记 abandoned');
+  const stuck = await run('apply', 'p', {}, 200);
+  assert.strictEqual(stuck.wedged, true, '有 worker 卡住时写入应立即失败, 不排队等死');
+  lateReturn();                                   // 卡住的 native 调用后来返回了
+  assert.strictEqual((await run('apply', 'p', {}, 200)).ok, true, 'worker 退出后队列必须恢复');
+});
+
+test('#Mac 排队超时 => 限时返回失败, 前面的操作不结束时界面不会永远"写入中"', async () => {
+  const W = fakeWorkerCtor(() => {});              // 永不返回, 占住队列
+  const run = createWorkerRunner({ WorkerCtor: W, workerFile: 'x', queueMs: 20 });
+  run('version', 'p', {}, 60000);                  // 长时间占着 (未超时)
+  await new Promise(r => setImmediate(r));
+  const t0 = Date.now();
+  const r = await run('apply', 'p', {}, 60000);
+  assert.strictEqual(r.ok, false);
+  assert.match(r.error, /排队/);
+  assert.ok(Date.now() - t0 < 400, '应在排队超时后返回, 不能等 apply 自己的超时');
 });
 
 test('#4 进度消息 keymap-ok 后宏失败 => keymapMaybeApplied=true', async () => {
@@ -179,6 +225,16 @@ test('设备监视: 主进程不再调用同步 HID.devices()', () => {
   assert.ok(!/=>\s*classify\(hid\.devices\(\)\)|classify\(HID\.devices\(\)\)/.test(code), '不应在主线程同步枚举');
 });
 
+test('classify: 两个 usagePage1/usage6 接口时按 interface===0 选 (Mac 实机会出现两个, 枚举顺序不保证)', () => {
+  const iface0 = { vendorId: 0x0c45, productId: 0x8006, usagePage: 1, usage: 6, interface: 0, path: 'DevSrvsID:4294967451' };
+  const iface1 = { vendorId: 0x0c45, productId: 0x8006, usagePage: 1, usage: 6, interface: 1, path: 'DevSrvsID:4295064307' };
+  for (const list of [[iface1, iface0], [iface0, iface1]]) {
+    assert.strictEqual(classify(list, 'darwin').path, 'DevSrvsID:4294967451');
+  }
+  // macOS 上 node-hid 可能给不出 interface (全 -1) => 不能因此认不出设备, 退回 usage 判断
+  const noIface = GM_IFACES.map(d => ({ ...d, interface: -1 }));
+  assert.strictEqual(classify(noIface, 'darwin').path, GM_IFACES[0].path);
+});
 // ---- 跨平台接口挑选 (macOS 打包: 路径里没有 mi_00) ----
 const { classify } = require('../main/device-watcher');
 const GM_IFACES = [

@@ -23,11 +23,16 @@ function pickNormal(cands, platform) {
     const w = cands.filter(d => /mi_00/i.test(d.path || ''));
     return w.find(d => /kbd$/i.test(d.path || '')) || w[0];
   }
-  // macOS / Linux: 设备路径里没有 "mi_00" 这种 Windows 专有字符串, 只能按 usagePage 挑接口。
-  // GM108 会同时枚举出 usagePage 1 (键盘) / 12 (Consumer) / 65280 / 65535 (厂商) 等接口,
-  // 键位段命令走的是键盘接口 => 优先 usagePage=1 且 usage=6 (HID Generic Desktop: Keyboard)。
-  // 注意: 这一段是推断, 尚未在 Mac 上实测 (2026-11-25)。
-  return cands.find(d => d.usagePage === 1 && d.usage === 6) || cands.find(d => d.usagePage === 1) || cands[0];
+  // macOS / Linux: 设备路径里没有 "mi_00" 这种 Windows 专有字符串, 只能按接口号 / usagePage 挑。
+  // GM108 有两个接口都是 usagePage 1 / usage 6: 接口 0 (boot 键盘, 带 64B Feature 报告, 是本工具的命令通道)
+  // 和接口 1 的 Col03 (全键无冲键盘, 没有 Feature 报告)。macOS 不保证枚举顺序, 所以先按接口号选, usage 只兜底。
+  // 2026-11-26 Mac 实机 (macOS 12.7): 枚举确实出现两个 usagePage1/usage6 条目, 选中接口 0 时
+  // open + GET feature report 0x00 有应答; 选中另一个则 GET 报 0xE0005000。node-hid 在 macOS 上是否
+  // 给出 interface 字段仍待实机确认 (没给出时 find(interface===0) 自然落空, 行为与改前一致)。
+  return cands.find(d => d.interface === 0)
+    || cands.find(d => d.usagePage === 1 && d.usage === 6)
+    || cands.find(d => d.usagePage === 1)
+    || cands[0];
 }
 
 function classify(devices, platform = process.platform) {
