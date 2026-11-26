@@ -8,6 +8,8 @@
 
 GANSS GM108 机械键盘的开源改键 / 键位配置工具。基于 Electron + node-hid, 免安装, 不常驻后台。改动写入键盘固件, 断电或换电脑后配置依然保留。
 
+**为什么做这个工具**: 官方配置软件只提供 Windows 版本, 在 macOS 上根本装不上也跑不起来 —— 用 Mac 的人拿到这块键盘就只能按 Fn 组合盲切, 改键、录宏、禁用按键全都没法做。本工具就是为补上这个缺口而写的: **Windows 和 macOS 都能用**, 界面和功能完全一样。配置存在键盘里而不是电脑里, 所以在一台机器上写好的配置, 换到另一台机器插上就是一样的效果。
+
 > ⚠️ 本工具通过 USB HID 向键盘固件写入配置。虽然内置多重安全熔断, 但修改固件配置始终有风险, 请先阅读[故障与救援](#故障与救援)。本工具与 GANSS 官方无关。
 >
 > ⚠️ **当前开发版 (2026-11-24) 尚未完成实机验证**, 宏绑定和鼠标宏的编码在这一版做了较大修正。验证完成前, 请只在自己的键盘上试用。
@@ -15,7 +17,7 @@ GANSS GM108 机械键盘的开源改键 / 键位配置工具。基于 Electron +
 ### 功能
 
 - **按键映射**: 按真实布局点键, 可设为默认 / 键盘功能 (改键或带 Ctrl、Alt、Shift、Win 的组合键) / 鼠标 / 宏 / 连击 / 多媒体 / 系统快捷键 (Windows、macOS) / 禁用。改过的键按功能着色。
-- **直接映射组合键**: 可以把一个键直接设成 Ctrl+A、Win+Shift+S 等组合键。官方老软件的单键映射不支持组合键, 只能录宏代替; 这是写本工具的主要原因之一。(已实机确认可用。)
+- **直接映射组合键**: 可以把一个键直接设成 Ctrl+A、Win+Shift+S 等组合键。官方老软件的单键映射不支持组合键, 只能录宏代替。(已实机确认可用。)
 - **macOS 功能键**: 预设屏幕亮度、推出、调度中心、启动台、地球键, 以及 Spotlight、截图、锁屏等常用 Mac 快捷键 (老软件没有)。部分项目待在 Mac 上实机确认。
 - **宏库**: 录制按键序列, 逐条调整"之后等待"和顺序, 可手动插入按键、鼠标事件、延时 (最长 99999999 ms); 显示总时长和占用空间。宏存放在键盘里, 所有配置档共用。
 - **配置档**: 新建 / 保存 / 另存为 / 删除 / 导入 / 导出 (JSON)。
@@ -36,7 +38,7 @@ npm start                        # 开发运行
 npm run dist                     # 打包, 产物: app/dist/*-portable.exe
 ```
 
-> 部分电脑上 Chromium 沙箱无法启动, 程序会一打开就闪退。本工具已在程序内关闭沙箱 (`--no-sandbox`), 打包后的 `win-unpacked\` 可以直接运行。界面只加载本地文件, 关闭沙箱的影响很小。
+> 部分 Windows 电脑上 Chromium 沙箱无法启动, 程序会一打开就闪退。本工具只在 Windows 上关闭沙箱 (`--no-sandbox`), 打包后的 `win-unpacked\` 可以直接运行。界面只加载本地文件, 关闭沙箱的影响很小; macOS / Linux 上仍保留沙箱。
 >
 > npm 下载 Electron 二进制若被拦截, 可设置镜像: `set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`
 
@@ -87,7 +89,7 @@ tag 与 `app/package.json` 里的版本号不一致时构建会直接失败 (防
 - 写会话: `04 ab` 握手 → 随机挑战块 → `04 02` 状态 → 段头 `04 <段号>` (含块数) → N×64B 数据块 → `04 02` 收尾, 前后各一次 `04 18` 心跳。每一步都校验应答。
 - 键位段 (`04 11`): 640 字节, 每格 4 字节, 位于 `格号 × 4`。改键 = `02 <修饰位> <HID usage> 00`, 禁用 = `05 03 00 00`, 宏绑定 = `06 <槽> <模式> <次数>`。
 - 宏库段 (`04 15`): 100 个槽的指针表 + 宏数据, 每步 4 字节 (按键 / 鼠标 / 延时), 段长随宏的多少变化。
-- 协议由对官方老软件抓包逆向得到, 各种编码均与抓包逐字节比对过。详见 `GM108改键工具-项目总结.md`。
+- 协议由对官方老软件抓包逆向得到, 各种编码均与抓包逐字节比对过。
 
 `probe/` 目录保留了逆向与抓包脚本 (`cap.js` 用 frida 抓老软件的 HID 通信), 供学习参考。
 
@@ -99,17 +101,6 @@ tag 与 `app/package.json` 里的版本号不一致时构建会直接失败 (防
   - 官方刷写工具随本仓库提供: [`firmware/GM108_Keyboard_V1.16_0304_firmware.exe`](firmware/GM108_Keyboard_V1.16_0304_firmware.exe) (原版 OEM 工具, 版权归 GANSS / SONiX 所有; `firmware/` 内另有原包与固件提取分析产物, 仅供救援与研究)。**请另行备份该 exe。**
   - ⚠️ 严禁用第三方烧录器直接刷 `.bin`, 官方刷写含传输加密, 第三方刷入会变砖。
 
-### 文档
-
-仓库内只保留本 README。下列过程文档只作本机留档，**不入库**（`.gitignore` 已忽略 `*.md`）：
-
-| 文件 | 内容 |
-|---|---|
-| `交接说明-2026-11-24.md` | 当前状态、下一步、注意事项 (接手先读) |
-| `GM108改键工具-项目总结.md` | 现状、目录、完整协议、勘误 |
-| `修复文档-合并版-2026-11-24.md` | 代码审查问题与修复记录、发版前实机验证清单 |
-| `宏协议待确认清单-2026-11-24.md` / `老软件抓包步骤-2026-11-24.md` | 宏协议的抓包确认过程 |
-
 ### 许可
 
 [MIT](LICENSE)
@@ -120,6 +111,8 @@ tag 与 `app/package.json` 里的版本号不一致时构建会直接失败 (防
 
 An open-source key remapping tool for the **GANSS GM108** mechanical keyboard, built on Electron + node-hid. No installation and no background process. Changes are written to the keyboard firmware and persist across reboots and computers.
 
+**Why this exists**: the official configuration software is Windows-only — it cannot be installed or run on macOS at all, so Mac users of this keyboard were stuck with the Fn shortcuts and had no way to remap keys, record macros or disable keys. This tool closes that gap: it runs on **both Windows and macOS** with the same interface and features. The configuration lives in the keyboard rather than on the computer, so a profile written from either machine behaves identically on the other.
+
 > ⚠️ This tool writes configuration to the keyboard firmware over USB HID. Despite built-in safety circuit-breakers, this always carries risk. Read [Troubleshooting & Recovery](#troubleshooting--recovery) first. Not affiliated with GANSS.
 >
 > ⚠️ **The current development build (2026-11-24) has not finished on-device verification.** The encoding of macro bindings and mouse macros was substantially corrected in this build. Until verification is done, only try it on your own keyboard.
@@ -127,7 +120,7 @@ An open-source key remapping tool for the **GANSS GM108** mechanical keyboard, b
 ### Features
 
 - **Key mapping**: click keys on a true-to-life layout and set them to default, a key or combo (with Ctrl/Alt/Shift/Win), mouse, macro, multi-key sequence, media key, a Windows/macOS system shortcut, or disabled. Modified keys are colour-coded by function.
-- **Direct combo mapping**: map a single key straight to a combo such as Ctrl+A or Win+Shift+S. The official legacy software cannot do this in its key mapping and only offers recording a macro instead, which is one of the main reasons this tool exists. (Confirmed working on the device.)
+- **Direct combo mapping**: map a single key straight to a combo such as Ctrl+A or Win+Shift+S. The official legacy software cannot do this in its key mapping and only offers recording a macro instead. (Confirmed working on the device.)
 - **macOS function keys**: presets for display brightness, Eject, Mission Control, Launchpad and the Globe key, plus common Mac shortcuts such as Spotlight, screenshots and lock screen (not in the legacy software). Some are still to be confirmed on a Mac.
 - **Macro library**: record key sequences, adjust each step's wait and order, insert keys, mouse events and delays (up to 99,999,999 ms); shows total duration and storage used. Macros are stored in the keyboard and shared by all profiles.
 - **Profiles**: new / save / save-as / delete / import / export (JSON).
@@ -148,7 +141,22 @@ npm start                        # development run
 npm run dist                     # build; output: app/dist/*-portable.exe
 ```
 
-> On some machines the Chromium sandbox fails to start and the app exits immediately. The app now disables the sandbox itself (`--no-sandbox`), so the packaged `win-unpacked\` folder can be run directly. The UI only loads local files, so the impact is small.
+> On some Windows machines the Chromium sandbox fails to start and the app exits immediately. The app disables the sandbox on Windows only (`--no-sandbox`), so the packaged `win-unpacked\` folder can be run directly. The UI only loads local files, so the impact is small; macOS / Linux keep the sandbox.
+
+#### macOS
+
+```bash
+cd app
+npm install
+npm run dist:mac                 # builds arm64 + x64; or run the "Build macOS app" workflow on GitHub
+```
+
+Before the first successful write, macOS needs two things, otherwise it aborts with `0xE00002C1`:
+
+1. Drop the quarantine attribute that comes with a downloaded zip: `xattr -dr com.apple.quarantine "/Applications/GANSS GM108 Remap.app"`
+2. Grant **Input Monitoring** (System Settings → Privacy & Security → Input Monitoring), add this app, then **quit it completely and reopen** — the permission only applies to a new process. Reason: the keymap command channel is the `usagePage 1 / usage 6` keyboard interface, which the system keyboard driver is already using, so opening it is a privileged operation.
+
+> CI artifacts are ad-hoc signed (not notarised), and macOS records the permission against the signature — after a rebuild or reinstall the checkbox may need to be ticked again.
 
 ### Workflow
 
@@ -167,7 +175,7 @@ The keyboard uses a SONiX SN32F240B (ARM Cortex-M0). Configuration is written vi
 - Write session: `04 ab` handshake → random challenge block → `04 02` status → section header `04 <section>` (with block count) → N×64B data blocks → `04 02`, with a `04 18` heartbeat before and after. Every step's reply is verified.
 - Keymap section (`04 11`): 640 bytes, 4 bytes per key at `index × 4`. Remap = `02 <modifiers> <HID usage> 00`, disable = `05 03 00 00`, macro binding = `06 <slot> <mode> <count>`.
 - Macro section (`04 15`): a 100-slot pointer table plus macro data, 4 bytes per step (key / mouse / delay); its length depends on how many macros there are.
-- The protocol was reverse-engineered from captures of the official software, and every encoding has been compared byte-for-byte with captures. See `GM108改键工具-项目总结.md` (Chinese) for full details.
+- The protocol was reverse-engineered from captures of the official software, and every encoding has been compared byte-for-byte with captures.
 
 ### Troubleshooting & Recovery
 
