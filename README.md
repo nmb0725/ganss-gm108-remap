@@ -56,6 +56,20 @@ npm run dist:mac                 # 打包 arm64 + x64; 也可用 GitHub Actions 
 
 > CI 产物是 ad-hoc 签名 (未做公证), 系统按签名指纹记账, **重新打包/覆盖安装后这个勾选可能失效, 需要重新勾一次**。
 
+### 发布 (不需要在本地编译)
+
+Windows 与 macOS 的发行包都由 GitHub 云上的机器构建并发布到 Releases, 本地只需要推一个 tag:
+
+```bash
+cd app && npm version 0.1.1 --no-git-tag-version && cd ..
+git commit -am "release: 0.1.1" && git push
+git tag v0.1.1 && git push --tags          # 触发 .github/workflows/release.yml
+```
+
+产物在仓库的 **Releases** 页下载: `*-portable.exe`、`*-mac-arm64.zip`、`*-mac-x64.zip`。
+tag 与 `app/package.json` 里的版本号不一致时构建会直接失败 (防忘记改版本号)。
+发版前想人工先验一遍, 可以手动跑 "Build macOS app" —— 它只把包放到 Actions 的 Artifacts, 不发 Release。
+
 ### 使用流程
 
 1. 关闭 GANSS 官方老配置软件 (它会独占键盘), 插好键盘, 打开本工具。顶栏应显示绿色的"GANSS GM108 已连接"。

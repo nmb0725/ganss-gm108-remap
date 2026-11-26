@@ -1,0 +1,146 @@
+# 发布: 推一个 v* 的 tag 即自动构建三个发行包并发成 GitHub Release
+#   git tag v0.1.1 && git push --tags
+# 产物 (Release 页直接下载, 不需要本地装 Node):
+#   GM108-Remap-<版本>-portable.exe      Windows x64 (windows-latest 构建)
+#   GM108-Remap-<版本>-mac-arm64.zip     Apple Silicon (macos-latest 构建)
+#   GM108-Remap-<版本>-mac-x64.zip       Intel Mac (同一台 macos-latest 构建)
+# 说明: 没有 Apple 开发者证书, mac 包只能 ad-hoc 签名 (未公证), 首次运行仍需手动去隔离属性 +
+#       授权输入监控, 见 README 的 macOS 段。这一步跟在哪台机器上编译无关。
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # 建 Release 需要
+
+jobs:
+  # ---------- Windows ----------
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: 检查 tag 与 package.json 版本一致
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkg=$(node -p "require('./package.json').version")
+          tag="${GITHUB_REF_NAME#v}"
+          [ "$pkg" = "$tag" ] || { echo "tag=v$tag 但 package.json 是 $pkg, 先改版本号再打 tag"; exit 1; }
+
+      - run: npm ci
+      - run: npm test
+      - run: npx electron-builder --win portable --publish never
+
+      - name: 收集产物
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../release
+          cp dist/*-portable.exe ../release/
+          ls -l ../release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-win
+          path: release/*.exe
+          if-no-files-found: error
+
+  # ---------- macOS (两个架构) ----------
+  macos:
+    # 直接写 macos-14 在个人账户下会被 GitHub 立即取消 (0 步, conclusion=cancelled)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+      - run: npm test
+
+      # 产出 dist/mac-arm64/*.app (arm64) 与 dist/mac/*.app (x64)
+      # 命令行 --mac dir 会把架构重置成宿主架构, 必须分别显式指定 --arm64 / --x64
+      - name: Build .app bundles
+        run: |
+          npx electron-builder --mac dir --arm64 --publish never
+          npx electron-builder --mac dir --x64 --publish never
+          ls -d dist/mac*/
+
+      - name: Ad-hoc sign and zip
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          APP_NAME="GANSS GM108 Remap.app"
+          mkdir -p ../release
+          for pair in "mac-arm64:arm64" "mac:x64"; do
+            dir="${pair%%:*}"; arch="${pair##*:}"
+            src="dist/$dir/$APP_NAME"
+            [ -d "$src" ] || { echo "缺少 $src"; exit 1; }
+            # ad-hoc 签名 (-): Apple Silicon 上被改动过的 Mach-O 必须有签名, 否则直接判为无效
+            codesign --force --deep --sign - "$src"
+            codesign --verify --verbose=2 "$src"
+            # ditto 保留符号链接与可执行权限 (zip 命令在跨文件系统时会丢)
+            ditto -c -k --keepParent "$src" "../release/GM108-Remap-$VER-mac-$arch.zip"
+          done
+          ls -l ../release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-mac
+          path: release/*-mac-*.zip
+          if-no-files-found: error
+
+  # ---------- 发 Release ----------
+  release:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-win
+          path: dl
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-mac
+          path: dl
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ls -l dl
+          cat > notes.md <<'EOF'
+          **下载后怎么用**
+
+          - **Windows**: 双击 exe 即可 (免安装)。用之前请先**关闭 GANSS 官方老配置软件** —— 它会独占键盘。
+          - **macOS**: 解压得到 `GANSS GM108 Remap.app`, 拖进 `/Applications`, 然后做两件事, 否则点"写入到键盘"会报 `0xE00002C1` 而中止:
+            1. 去掉下载带来的隔离属性: `xattr -dr com.apple.quarantine "/Applications/GANSS GM108 Remap.app"`
+            2. 授权**输入监控** (macOS 12 及更早: 系统偏好设置 → 安全性与隐私 → 隐私 → 输入监控; macOS 13 及以后: 系统设置 → 隐私与安全性 → 输入监控), 点 `+` 添加本 App 并勾选, 然后**完全退出本工具再重开**。
+          - 包未做 Apple 开发者签名与公证 (是 ad-hoc 签名), 所以以上两步省不掉; 重新下载同版本的包后输入监控的勾选可能要重勾一次。
+
+          **键盘要求**: GANSS GM108 (`0C45:8006`)。改动写进键盘固件, 换电脑、重启后仍然有效。
+          EOF
+          gh release create "$GITHUB_REF_NAME" dl/* \
+            --title "GM108 改键工具 $GITHUB_REF_NAME" \
+            --notes-file notes.md
