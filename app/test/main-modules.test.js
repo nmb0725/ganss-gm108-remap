@@ -98,6 +98,21 @@ test('#Mac 只读超时后迟到返回 => worker 退出, 后续写入仍可执�
   assert.strictEqual((await run('apply', 'p', {}, 200)).ok, true, 'worker 退出后队列必须恢复');
 });
 
+test('#Mac 排队期间前一个操作变成 wedged => 排队超时提示"拔插重启"而不是"稍后重试"', async () => {
+  let late;
+  const W = fakeWorkerCtor((w, m) => {
+    if (m.hang) late = () => { w.emit('message', { id: m.id, ok: true }); w.emit('exit', 0); };
+    else setImmediate(() => { w.emit('message', { id: m.id, ok: true }); w.emit('exit', 0); });
+  });
+  const run = createWorkerRunner({ WorkerCtor: W, workerFile: 'x', queueMs: 60 });
+  const a = run('version', 'p', { hang: true }, 20);   // 20ms 后超时 => wedged, worker 不退出
+  await new Promise(r => setImmediate(r));             // 此时 a 仍在跑, b 会进队列而不是被 wedged 挡住
+  const rb = await run('version', 'p', {}, 20);
+  assert.strictEqual(rb.wedged, true, '排队期间前一个操作卡死 => 应给出 wedged 提示');
+  assert.match(rb.error, /拔插键盘后重启/, '"稍后重试"对 wedged 没有意义');
+  late();
+});
+
 test('#Mac 排队超时 => 限时返回失败, 前面的操作不结束时界面不会永远"写入中"', async () => {
   const W = fakeWorkerCtor(() => {});              // 永不返回, 占住队列
   const run = createWorkerRunner({ WorkerCtor: W, workerFile: 'x', queueMs: 20 });

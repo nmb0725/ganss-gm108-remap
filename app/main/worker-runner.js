@@ -14,6 +14,8 @@
 //  - 所有操作串行, 排队也有上限 (queueMs): 见 runHidWorker 上方的 macOS 崩溃说明。
 const path = require('path');
 
+// queueMs: 排队上限。必须大于排在写入前面的只读操作超时 (device:version 现在是 5s),
+// 否则读版本还没结束/超时, 排队中的写入就先超时了。调大读版本超时时记得同步调大这里。
 function createWorkerRunner({ WorkerCtor, workerFile, onPending, softMs = 30000, hardMs = 120000, queueMs = 15000 } = {}) {
   WorkerCtor = WorkerCtor || require('worker_threads').Worker;
   workerFile = workerFile || path.join(__dirname, 'hid-worker.js');
@@ -86,7 +88,10 @@ function createWorkerRunner({ WorkerCtor, workerFile, onPending, softMs = 30000,
     let queuedOut = false;
     const queueTimer = setTimeout(() => {
       queuedOut = true;
-      giveResult({ ok: false, error: `HID 设备忙, 排队超过 ${Math.round(queueMs / 1000)} 秒还没轮到, 请稍后重试` });
+      // 排在已 wedged 的 worker 后面时, "稍后重试"是没用的 (wedged 只能重启解除), 提示要说准
+      giveResult(wedged
+        ? { ok: false, wedged: true, error: '上一次 HID 操作仍未结束 (卡在系统调用里), 请拔插键盘后重启本工具' }
+        : { ok: false, error: `HID 设备忙, 排队超过 ${Math.round(queueMs / 1000)} 秒还没轮到, 请稍后重试` });
     }, queueMs);
     const prev = chain;
     chain = (async () => {
