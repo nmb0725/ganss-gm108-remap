@@ -131,7 +131,7 @@ jobs:
           set -euo pipefail
           ls -l dl
           cat > notes.md <<'EOF'
-          **下载后怎么用**
+          ## 下载后怎么用
 
           - **Windows**: 双击 exe 即可 (免安装)。用之前请先**关闭 GANSS 官方老配置软件** —— 它会独占键盘。
           - **macOS**: 解压得到 `GANSS GM108 Remap.app`, 拖进 `/Applications`, 然后做两件事, 否则点"写入到键盘"会报 `0xE00002C1` 而中止:
@@ -140,8 +140,18 @@ jobs:
           - 包未做 Apple 开发者签名与公证 (是 ad-hoc 签名), 所以以上两步省不掉; 重新下载同版本的包后输入监控的勾选可能要重勾一次。
 
           **键盘要求**: GANSS GM108 (`0C45:8006`)。改动写进键盘固件, 换电脑、重启后仍然有效。
+
+          ## How to use after download
+
+          - **Windows**: just run the exe (no installation needed). Close the official GANSS configuration software first — it holds the keyboard exclusively.
+          - **macOS**: unzip to get `GANSS GM108 Remap.app`, drag it into `/Applications`, then do these two things, otherwise clicking "写入到键盘 / Write to keyboard" aborts with `0xE00002C1`:
+            1. Remove the quarantine attribute that comes with the download: `xattr -dr com.apple.quarantine "/Applications/GANSS GM108 Remap.app"`
+            2. Grant **Input Monitoring** (macOS 12 and earlier: System Preferences → Security & Privacy → Privacy → Input Monitoring; macOS 13 and later: System Settings → Privacy & Security → Input Monitoring), add this app with `+`, tick it, then **quit the tool completely and reopen it**.
+          - The builds are ad-hoc signed (no Apple developer certificate, no notarisation), so the two steps above cannot be skipped; after re-downloading the same version you may need to tick Input Monitoring again.
+
+          **Keyboard required**: GANSS GM108 (`0C45:8006`). Changes are written into the keyboard firmware, so they survive a reboot or a different computer.
           EOF
           # 这个 job 不 checkout 代码, gh 无法靠 .git 推断仓库, 必须显式 -R
           gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" dl/* \
-            --title "GM108 改键工具 $GITHUB_REF_NAME" \
+            --title "GM108 改键工具 / GM108 Remap Tool $GITHUB_REF_NAME" \
             --notes-file notes.md
