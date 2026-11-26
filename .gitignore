@@ -21,3 +21,7 @@ Desktop.ini
 
 app/app-git-old-backup/
 
+# 本地文档记录: 只作本机留档, 不入库 (README.md 除外) / local-only docs
+*.md
+!README.md
+
