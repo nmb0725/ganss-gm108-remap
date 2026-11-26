@@ -141,6 +141,7 @@ jobs:
 
           **键盘要求**: GANSS GM108 (`0C45:8006`)。改动写进键盘固件, 换电脑、重启后仍然有效。
           EOF
-          gh release create "$GITHUB_REF_NAME" dl/* \
+          # 这个 job 不 checkout 代码, gh 无法靠 .git 推断仓库, 必须显式 -R
+          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" dl/* \
             --title "GM108 改键工具 $GITHUB_REF_NAME" \
             --notes-file notes.md
