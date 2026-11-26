@@ -11,8 +11,6 @@ GANSS GM108 机械键盘的开源改键 / 键位配置工具。基于 Electron +
 **为什么做这个工具**: 官方配置软件只提供 Windows 版本, 在 macOS 上根本装不上也跑不起来 —— 用 Mac 的人拿到这块键盘就只能按 Fn 组合盲切, 改键、录宏、禁用按键全都没法做。本工具就是为补上这个缺口而写的: **Windows 和 macOS 都能用**, 界面和功能完全一样。配置存在键盘里而不是电脑里, 所以在一台机器上写好的配置, 换到另一台机器插上就是一样的效果。
 
 > ⚠️ 本工具通过 USB HID 向键盘固件写入配置。虽然内置多重安全熔断, 但修改固件配置始终有风险, 请先阅读[故障与救援](#故障与救援)。本工具与 GANSS 官方无关。
->
-> ⚠️ **当前开发版 (2026-11-24) 尚未完成实机验证**, 宏绑定和鼠标宏的编码在这一版做了较大修正。验证完成前, 请只在自己的键盘上试用。
 
 ### 功能
 
@@ -114,8 +112,6 @@ An open-source key remapping tool for the **GANSS GM108** mechanical keyboard, b
 **Why this exists**: the official configuration software is Windows-only — it cannot be installed or run on macOS at all, so Mac users of this keyboard were stuck with the Fn shortcuts and had no way to remap keys, record macros or disable keys. This tool closes that gap: it runs on **both Windows and macOS** with the same interface and features. The configuration lives in the keyboard rather than on the computer, so a profile written from either machine behaves identically on the other.
 
 > ⚠️ This tool writes configuration to the keyboard firmware over USB HID. Despite built-in safety circuit-breakers, this always carries risk. Read [Troubleshooting & Recovery](#troubleshooting--recovery) first. Not affiliated with GANSS.
->
-> ⚠️ **The current development build (2026-11-24) has not finished on-device verification.** The encoding of macro bindings and mouse macros was substantially corrected in this build. Until verification is done, only try it on your own keyboard.
 
 ### Features
 
