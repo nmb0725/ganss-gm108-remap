@@ -1,7 +1,7 @@
 {
   "name": "ganss-remap",
   "productName": "GANSS GM108 改键工具",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GM108 可视化改键工具: 默认/禁用/改键 + 配置存档 + 安全下发",
   "main": "main/main.js",
   "private": true,
