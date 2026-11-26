@@ -109,8 +109,8 @@
                   <option value="4|70|Alt + PrtSc">Alt + PrtSc</option>
                   <option value="8|70|Win + PrtSc">Win + PrtSc</option>
                   <option value="2|70|Shift + PrtSc">Shift + PrtSc</option>
-                  <!-- F13-F19: 只在接口 1 的全键无冲键盘报告范围内 (0x00-0x77), boot 键盘只到 0x65; 待实机验证 -->
-                  <optgroup label="F13–F19 (Mac 可绑自定义快捷键, ⚠ 待验证)">
+                  <!-- F13-F19: 只在接口 1 的全键无冲键盘报告范围内 (0x00-0x77), boot 键盘只到 0x65; 已实机确认 -->
+                  <optgroup label="F13–F19 (Mac 可绑自定义快捷键)">
                   <option value="0|104|F13">F13</option>
                   <option value="0|105|F14">F14 (Mac: 亮度 −)</option>
                   <option value="0|106|F15">F15 (Mac: 亮度 +)</option>
@@ -186,7 +186,7 @@
                   <option value="4|61|Alt + F4">Alt + F4 — 关闭窗口</option>
                   <option value="3|41|Ctrl + Shift + Esc">Ctrl + Shift + Esc — 任务管理器</option>
                   </optgroup>
-                  <!-- macOS: Cmd = Win 键 (GUI), Option = Alt。组合键编码已在 Windows 上实机确认 (11-24); macOS 端的系统响应待 Mac 验证 -->
+                  <!-- macOS: Cmd = Win 键 (GUI), Option = Alt。组合键编码已在 Windows 与 macOS 上实机确认 -->
                   <optgroup label="macOS (Cmd = Win, Option = Alt)">
                   <option value="0|71|亮度 − (F14)">屏幕亮度 −  (发 ScrLk, Mac 上即 F14)</option>
                   <option value="0|72|亮度 + (F15)">屏幕亮度 +  (发 Pause, Mac 上即 F15)</option>
@@ -223,8 +223,8 @@
                   <option value="402">计算器</option>
                   <option value="404">我的电脑</option>
                   </optgroup>
-                  <!-- macOS 消费者页功能键: 2026-11-24 enum.js 确认接口 1 用的是描述符 A (消费者数组 0x000-0x33C), 码在范围内; 固件是否原样转发待 Mac 实机验证。见 项目总结 第八节 -->
-                  <optgroup label="macOS (⚠ 待实机验证)">
+                  <!-- macOS 消费者页功能键: 2026-11-24 enum.js 确认接口 1 用的是描述符 A (消费者数组 0x000-0x33C), 码在范围内; 固件原样转发, 已在 Mac 实机确认。见 项目总结 第八节 -->
+                  <optgroup label="macOS">
                   <option value="184">推出 ⏏</option>
                   <option value="671">调度中心 (Mission Control)</option>
                   <option value="672">启动台 (Launchpad)</option>
